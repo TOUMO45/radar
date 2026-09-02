@@ -1,0 +1,27 @@
+{
+  "name": "@scenelock/certifier",
+  "version": "0.1.0",
+  "description": "Deterministic clearance certificate — compile (Appendix D) + sha-256 hash chain + KMS signature + verification slug (spec §8, E.1, D2, G-15). Never an agent (D2). Signs on LOCK.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*",
+    "@scenelock/verdict": "workspace:*"
+  },
+  "devDependencies": {
+    "@scenelock/fixtures": "workspace:*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

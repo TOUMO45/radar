@@ -1,0 +1,15 @@
+# Exact install order matters here — see the docstring at the top of
+# radar_agent.py for why. Install with:
+#   pip install -r requirements.txt
+#
+# Do NOT add a bare `mcp` line above or below this file's google-adk line;
+# pip resolves the [mcp] extra's pinned, compatible mcp version only when
+# it's requested this way. Installing standalone `mcp` first triggers:
+#   ImportError: cannot import name 'ProgressFnT' from 'mcp.shared.session'
+#
+# radar_gates.py has ZERO third-party deps (stdlib only) so the
+# offline G1-G4 self-test runs even before these are installed.
+
+google-adk[mcp]
+google-genai
+python-dotenv   # loads services/agent/.env for the direct `python radar_agent.py` run

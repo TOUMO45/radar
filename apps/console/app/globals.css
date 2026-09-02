@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/*
+ * "Control Room" design system — spec C.4.
+ * Dark, industrial, evidence-first. One accent per semantic meaning.
+ * Elevation via panel tints + hairlines, never shadows. No gradients.
+ */
+@theme {
+  --color-bg-base: #0b0e14;
+  --color-bg-panel: #11151d;
+  --color-bg-raise: #171c26;
+  --color-line-hair: #232a36;
+
+  --color-text-primary: #e6eaf2;
+  --color-text-secondary: #8b94a7;
+
+  --color-status-locked: #2bd576;
+  --color-status-held: #ffb224;
+  --color-status-certified: #6e8bff;
+  --color-status-error: #f4586b;
+  --color-status-info: #8b94a7;
+
+  --color-source-deterministic: #22ccee;
+  --color-source-model: #a78bfa;
+  --color-source-hybrid: #2dd4bf;
+
+  --radius-panel: 6px;
+  --radius-badge: 2px;
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", "Cascadia Code", monospace;
+}
+
+html,
+body {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  border-color: var(--color-line-hair);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-source-deterministic);
+  outline-offset: 1px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "ss01";
+}
+
+.panel {
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-line-hair);
+  border-radius: var(--radius-panel);
+}
+
+.hair-t {
+  border-top: 1px solid var(--color-line-hair);
+}
+
+/* Verdict Math Bar segments (C-02) */
+.vmb-seg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  border-right: 1px solid var(--color-line-hair);
+  white-space: nowrap;
+}
+.vmb-seg:last-child {
+  border-right: 0;
+}
+.vmb-k {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+.vmb-v {
+  font-size: 15px;
+}

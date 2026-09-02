@@ -1,0 +1,26 @@
+{
+  "name": "@scenelock/gate-continuity",
+  "version": "0.1.0",
+  "description": "Continuity gate (spec E.5.1): expected-vs-observed state, presence, identity-embedding drift, unexpected entities — checked against the World State ledger. NOTE D3 keeps the production impl in Python (grounded detection + Vertex embeddings); this TS package is the DRY_RUN mock behind the same contract.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scenelock/archivist": "workspace:*",
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@scenelock/fixtures": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

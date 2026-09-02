@@ -1,0 +1,30 @@
+{
+  "name": "@scenelock/verifier",
+  "version": "0.1.0",
+  "description": "Tiny public certificate verification surface (spec G-16, F.1): GET /verify/:slug → status + hash chain. No auth, no PII, rate-limited.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "exports": { ".": { "types": "./dist/app.d.ts", "default": "./dist/app.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@scenelock/certifier": "workspace:*",
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*",
+    "@scenelock/verdict": "workspace:*",
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@scenelock/fixtures": "workspace:*",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

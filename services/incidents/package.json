@@ -1,0 +1,26 @@
+{
+  "name": "@scenelock/incidents",
+  "version": "0.1.0",
+  "description": "Incident watchdog (spec C.3 Flow B, E.11): a blocking finding auto-opens an incident assigned to the Fixer; it auto-closes on resolution. Grafana Incidents in prod — this is the in-memory seam.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@scenelock/fixtures": "workspace:*",
+    "@scenelock/verdict": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

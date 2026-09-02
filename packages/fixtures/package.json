@@ -1,0 +1,29 @@
+{
+  "name": "@scenelock/fixtures",
+  "version": "0.1.0",
+  "description": "DRY_RUN demo spine (D11, H.2) — the Act 1 seeded scene. Shared by services/api and the console MSW layer.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scenelock/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@scenelock/verdict": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

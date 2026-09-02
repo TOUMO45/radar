@@ -1,0 +1,27 @@
+{
+  "name": "@scenelock/archivist",
+  "version": "0.1.0",
+  "description": "World State (spec §4, E.1). Entity registration, state-machine-checked transitions, immutable state_events, candidate vs canonical, queryWorldState for gates + planner.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@scenelock/fixtures": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "name": "@scenelock/api",
+  "version": "0.1.0",
+  "description": "Core REST API skeleton (spec F.1). Serves the DRY_RUN store; verdict computed live via @scenelock/verdict.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    ".": { "types": "./dist/app.d.ts", "default": "./dist/app.js" },
+    "./context": { "types": "./dist/context.d.ts", "default": "./dist/context.js" },
+    "./services": { "types": "./dist/services.d.ts", "default": "./dist/services.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "print-verdict": "tsx src/scripts/print-verdict.ts"
+  },
+  "dependencies": {
+    "@scenelock/archivist": "workspace:*",
+    "@scenelock/certifier": "workspace:*",
+    "@scenelock/fixtures": "workspace:*",
+    "@scenelock/fixer": "workspace:*",
+    "@scenelock/saboteur": "workspace:*",
+    "@scenelock/verifier": "workspace:*",
+    "@scenelock/gate-clearance": "workspace:*",
+    "@scenelock/gate-compliance": "workspace:*",
+    "@scenelock/gate-continuity": "workspace:*",
+    "@scenelock/trust": "workspace:*",
+    "@scenelock/underwriting": "workspace:*",
+    "@scenelock/incidents": "workspace:*",
+    "@scenelock/media-processor": "workspace:*",
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*",
+    "@scenelock/verdict": "workspace:*",
+    "@fastify/cors": "^10.0.1",
+    "fastify": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

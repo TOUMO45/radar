@@ -1,0 +1,32 @@
+{
+  "name": "@scenelock/mcp",
+  "version": "0.1.0",
+  "description": "Radar MCP server (spec §9, E.6) — the protocol moat. JSON-RPC 2.0 over HTTP: initialize / tools/list / tools/call. Per-org bearer tokens + scopes + append-only audit log.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "exports": { ".": { "types": "./dist/app.d.ts", "default": "./dist/app.js" } },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@scenelock/api": "workspace:*",
+    "@scenelock/archivist": "workspace:*",
+    "@scenelock/ports": "workspace:*",
+    "@scenelock/schema": "workspace:*",
+    "@scenelock/verdict": "workspace:*",
+    "fastify": "^5.2.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@scenelock/fixtures": "workspace:*",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@scenelock/underwriting",
+  "version": "0.1.0",
+  "description": "E&O / Underwriting Pack — the single bundle a distributor's insurer needs to bind AI-content coverage (per-shot AI disclosure, digital-replica consent, provenance chain, clearance + compliance findings with waiver trail, the signed certificate, trust + delivery readiness). Deterministic, no keys.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@scenelock/schema": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
