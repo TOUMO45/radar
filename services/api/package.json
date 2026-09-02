@@ -28,6 +28,7 @@
     "@scenelock/gate-clearance": "workspace:*",
     "@scenelock/gate-compliance": "workspace:*",
     "@scenelock/gate-continuity": "workspace:*",
+    "@scenelock/gate-delivery": "workspace:*",
     "@scenelock/trust": "workspace:*",
     "@scenelock/underwriting": "workspace:*",
     "@scenelock/incidents": "workspace:*",

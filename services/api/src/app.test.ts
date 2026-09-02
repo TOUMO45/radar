@@ -479,6 +479,33 @@ describe("@scenelock/api — R2 provenance verification", () => {
   });
 });
 
+describe("@scenelock/api — R4 technical delivery QC", () => {
+  it("GET /v1/scenes/:sid/technical-delivery checks the master vs each targeted platform", async () => {
+    // target SVOD so the seed master (HD 8-bit h264, -30 LKFS, no captions) fails
+    await app.inject({
+      method: "PUT",
+      url: "/v1/productions/p_dry/compliance-profile",
+      headers: { "x-scenelock-role": "legal" },
+      payload: { territories: ["GLOBAL"], platforms: ["svod"] },
+    });
+    const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/technical-delivery" });
+    expect(res.statusCode).toBe(200);
+    const r = res.json();
+    expect(r.master).toBeTruthy();
+    expect(r.passed).toBe(false);
+    const svod = r.targets.find((t: { platform: string }) => t.platform === "svod");
+    expect(svod.passed).toBe(false);
+    const failed = svod.checks.filter((c: { ok: boolean }) => !c.ok).map((c: { param: string }) => c.param);
+    expect(failed).toContain("loudness");
+    expect(failed).toContain("captions");
+    expect(r.findings.every((f: { gate: string }) => f.gate === "delivery")).toBe(true);
+  });
+
+  it("404s for an unknown scene", async () => {
+    expect((await app.inject({ method: "GET", url: "/v1/scenes/nope/technical-delivery" })).statusCode).toBe(404);
+  });
+});
+
 describe("@scenelock/api — R8 portfolio roll-up", () => {
   it("GET /v1/orgs/:orgId/portfolio rolls up trust + deliverability per production", async () => {
     const res = await app.inject({ method: "GET", url: "/v1/orgs/org_demo/portfolio" });

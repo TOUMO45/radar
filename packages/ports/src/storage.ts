@@ -22,6 +22,7 @@ import type {
   Shot,
   ShotContinuity,
   ShotProvenance,
+  TechnicalMaster,
   ShotText,
   StateEvent,
 } from "@scenelock/schema";
@@ -101,6 +102,9 @@ export interface StoragePort {
   putProvenance(p: ShotProvenance): Promise<void>;
   getComplianceProfile(pid: string): Promise<ComplianceProfile | null>;
   putComplianceProfile(p: ComplianceProfile): Promise<void>;
+  // technical delivery master (R4)
+  getTechnicalMaster(sceneId: string): Promise<TechnicalMaster | null>;
+  putTechnicalMaster(m: TechnicalMaster): Promise<void>;
 
   // MCP tokens + audit log (E.6, E.7)
   listApiTokens(orgId: string): Promise<ApiToken[]>;
@@ -303,6 +307,12 @@ export class InMemoryStorage implements StoragePort {
   }
   async putComplianceProfile(p: ComplianceProfile) {
     this.d.complianceProfile = p;
+  }
+  async getTechnicalMaster(sceneId: string) {
+    return this.d.technicalMaster?.[sceneId] ?? null;
+  }
+  async putTechnicalMaster(m: TechnicalMaster) {
+    (this.d.technicalMaster ??= {})[m.scene_id] = m;
   }
 
   async listApiTokens(orgId: string) {

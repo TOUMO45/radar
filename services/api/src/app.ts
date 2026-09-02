@@ -244,6 +244,13 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     },
   );
 
+  // Technical delivery QC (roadmap R4) — master vs IMF/broadcast/DCP spec.
+  app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/technical-delivery", async (req, reply) => {
+    const r = await svc.sceneTechnicalDelivery(req.params.sid);
+    if (!r) return reply.code(404).send({ error: "scene not found" });
+    return r;
+  });
+
   // E&O / Underwriting Pack (roadmap R1) — the binder a distributor's insurer reads.
   app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/underwriting-pack", async (req, reply) => {
     const pack = await svc.underwritingPack(req.params.sid);

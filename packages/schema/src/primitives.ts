@@ -23,7 +23,7 @@ export const FindingSource = z.enum(["deterministic", "model", "hybrid"]);
 export type FindingSource = z.infer<typeof FindingSource>;
 
 /** Which gate produced a finding. Sub-gates are namespaced separately (Appendix A, G-08). */
-export const Gate = z.enum(["continuity", "clearance"]);
+export const Gate = z.enum(["continuity", "clearance", "delivery"]);
 export type Gate = z.infer<typeof Gate>;
 
 export const SubGate = z.enum(["audio"]).nullable();
@@ -55,6 +55,10 @@ export const RiskClass = z.enum([
   "likeness_rights", // digital replica without consent (CA AB 1836 / AB 2602)
   "watermark_missing", // no detectable AI watermark (EU Art.50(2), C2PA+SynthID)
   "platform_policy", // target delivery platform's AI-label policy not met
+  // technical delivery family (R4) — IMF/broadcast/theatrical master QC
+  "technical_delivery",
+  // music & audio rights family (R6)
+  "music_rights",
   // continuity family
   "continuity.state",
   "continuity.identity",

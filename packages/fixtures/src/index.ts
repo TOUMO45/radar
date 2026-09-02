@@ -16,6 +16,7 @@ import type {
   Shot,
   ShotContinuity,
   ShotProvenance,
+  TechnicalMaster,
   ShotText,
   StateEvent,
 } from "@scenelock/schema";
@@ -24,6 +25,7 @@ import * as kgSeed from "./kg.js";
 import * as tokenSeed from "./tokens.js";
 import { continuity as continuitySeed } from "./continuity.js";
 import { provenance as provenanceSeed, complianceProfile as complianceProfileSeed } from "./provenance.js";
+import { technicalMaster as technicalMasterSeed } from "./delivery.js";
 
 export { ORG_ID, PRODUCTION_ID, SCENE_ID } from "./dry-run.js";
 
@@ -43,6 +45,7 @@ export interface DryRunStore {
   continuity: Record<string, ShotContinuity>;
   provenance: Record<string, ShotProvenance>;
   complianceProfile: ComplianceProfile;
+  technicalMaster: Record<string, TechnicalMaster>;
 }
 
 /** Fixtures are plain JSON-safe data, so a JSON round-trip is a sufficient deep copy. */
@@ -65,6 +68,7 @@ export function getDryRunStore(): DryRunStore {
     continuity: continuitySeed,
     provenance: provenanceSeed,
     complianceProfile: complianceProfileSeed,
+    technicalMaster: technicalMasterSeed,
   });
 }
 

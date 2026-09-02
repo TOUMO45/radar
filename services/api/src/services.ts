@@ -11,6 +11,7 @@ import {
 import { computeVerdict } from "@scenelock/verdict";
 import { evaluateBudget } from "@scenelock/fixer";
 import { gateCompliance, type ComplianceReport } from "@scenelock/gate-compliance";
+import { gateDelivery } from "@scenelock/gate-delivery";
 import { computeDeliveryReadiness, computeTrustScore } from "@scenelock/trust";
 import { assembleUnderwritingPack, renderUnderwritingMarkdown } from "@scenelock/underwriting";
 import { C2paToolProvenanceAdapter, c2patoolAvailable } from "@scenelock/provenance";
@@ -506,6 +507,31 @@ export class Services {
       persisted = true;
     }
     return { verification, persisted };
+  }
+
+  /**
+   * GET /v1/scenes/:sid/technical-delivery (roadmap R4) — check the scene's
+   * assembled master against each targeted platform's IMF/broadcast/DCP spec
+   * (loudness, captions, frame rate, resolution, colour, codec). Findings are
+   * surfaced here, not injected into the lock path (same contract as compliance).
+   */
+  async sceneTechnicalDelivery(sid: string) {
+    const scene = await this.ctx.storage.getScene(sid);
+    if (!scene) return null;
+    const production = await this.ctx.storage.getProduction(scene.production_id);
+    if (!production) return null;
+    const master = await this.ctx.storage.getTechnicalMaster(sid);
+    const profile =
+      (await this.ctx.storage.getComplianceProfile(production.production_id)) ??
+      this.defaultProfile(production.production_id);
+    const { report, findings } = gateDelivery.run({
+      scene_id: sid,
+      master,
+      profile,
+      tau: production.settings.tau,
+      now: this.ctx.clock.now(),
+    });
+    return { ...report, findings };
   }
 
   /** Reconcile incidents for a production against its current findings (C.3 Flow B). */
