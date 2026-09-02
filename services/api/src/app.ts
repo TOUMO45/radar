@@ -229,6 +229,16 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     return r;
   });
 
+  // Provenance verification (roadmap R2) — declared C2PA/watermark → VERIFIED.
+  app.post<{ Params: { id: string }; Body: { asset_ref?: string | null } }>(
+    "/v1/shots/:id/verify-provenance",
+    async (req, reply) => {
+      const r = await svc.verifyShotProvenance(req.params.id, req.body?.asset_ref ?? null);
+      if (!r) return reply.code(404).send({ error: "no declared provenance for this shot" });
+      return r;
+    },
+  );
+
   // E&O / Underwriting Pack (roadmap R1) — the binder a distributor's insurer reads.
   app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/underwriting-pack", async (req, reply) => {
     const pack = await svc.underwritingPack(req.params.sid);

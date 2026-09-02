@@ -13,6 +13,7 @@ export * from "./production.js";
 export * from "./kg.js";
 export * from "./consent.js";
 export * from "./compliance.js";
+export * from "./provenance.js";
 export * from "./underwriting.js";
 export * from "./continuity.js";
 export * from "./mcp.js";

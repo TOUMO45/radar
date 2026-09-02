@@ -453,3 +453,28 @@ describe("@scenelock/api — R1 E&O / Underwriting Pack", () => {
     expect((await app.inject({ method: "GET", url: "/v1/scenes/nope/underwriting-pack" })).statusCode).toBe(404);
   });
 });
+
+describe("@scenelock/api — R2 provenance verification", () => {
+  it("POST /v1/shots/:id/verify-provenance (no asset) verifies from declared provenance", async () => {
+    const res = await app.inject({ method: "POST", url: "/v1/shots/shot_1/verify-provenance", payload: {} });
+    expect(res.statusCode).toBe(200);
+    const { verification, persisted } = res.json();
+    expect(verification.shot_id).toBe("shot_1");
+    expect(verification.detector).toBe("dry-run");
+    expect(persisted).toBe(false); // declared-only, nothing folded back
+    expect(typeof verification.c2pa.present).toBe("boolean");
+    expect(typeof verification.c2pa.verified).toBe("boolean");
+  });
+
+  it("an unmarked shot verifies as not-present / not-verified", async () => {
+    const { verification } = (
+      await app.inject({ method: "POST", url: "/v1/shots/shot_6/verify-provenance", payload: {} })
+    ).json();
+    expect(verification.c2pa.present).toBe(false);
+    expect(verification.c2pa.verified).toBe(false);
+  });
+
+  it("404s for a shot with no declared provenance", async () => {
+    expect((await app.inject({ method: "POST", url: "/v1/shots/nope/verify-provenance", payload: {} })).statusCode).toBe(404);
+  });
+});

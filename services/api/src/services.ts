@@ -13,6 +13,8 @@ import { evaluateBudget } from "@scenelock/fixer";
 import { gateCompliance, type ComplianceReport } from "@scenelock/gate-compliance";
 import { computeDeliveryReadiness, computeTrustScore } from "@scenelock/trust";
 import { assembleUnderwritingPack, renderUnderwritingMarkdown } from "@scenelock/underwriting";
+import { C2paToolProvenanceAdapter, c2patoolAvailable } from "@scenelock/provenance";
+import type { ProvenanceVerification } from "@scenelock/schema";
 import type { FindingFilter } from "@scenelock/ports";
 import type { AppContext } from "./context.js";
 
@@ -400,6 +402,47 @@ export class Services {
   async underwritingPackMarkdown(sid: string): Promise<string | null> {
     const pack = await this.underwritingPack(sid);
     return pack ? renderUnderwritingMarkdown(pack) : null;
+  }
+
+  /**
+   * Verify one shot's provenance (roadmap R2). Turns *declared* C2PA/watermark
+   * into *verified*: when `assetRef` points at real bytes and the ContentAuth
+   * c2patool is available, it runs the real cryptographic verification and
+   * persists the result back onto the shot's `ShotProvenance` (c2pa.valid +
+   * watermark.detectable), so Trust / Delivery / the E&O pack reflect proof, not
+   * a claim. With no asset it falls back to the declared-provenance adapter.
+   */
+  async verifyShotProvenance(
+    shotId: string,
+    assetRef?: string | null,
+  ): Promise<{ verification: ProvenanceVerification; persisted: boolean } | null> {
+    const declared = await this.ctx.storage.getProvenance(shotId);
+    if (!declared) return null;
+
+    const useLive = !!assetRef && c2patoolAvailable();
+    const port = useLive ? new C2paToolProvenanceAdapter() : this.ctx.provenance;
+    const verification = await port.verify({ shot_id: shotId, asset_ref: assetRef ?? null, declared });
+
+    let persisted = false;
+    if (useLive) {
+      // Fold the verified result back onto the declared provenance.
+      const updated = {
+        ...declared,
+        c2pa: {
+          present: verification.c2pa.present,
+          valid: verification.c2pa.verified,
+          manifest_uri: declared.c2pa?.manifest_uri ?? null,
+        },
+        watermark: {
+          present: verification.watermark.detected || declared.watermark.present,
+          method: verification.watermark.detected ? verification.watermark.method : declared.watermark.method,
+          detectable: verification.watermark.detected,
+        },
+      };
+      await this.ctx.storage.putProvenance(updated);
+      persisted = true;
+    }
+    return { verification, persisted };
   }
 
   /** Reconcile incidents for a production against its current findings (C.3 Flow B). */

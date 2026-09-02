@@ -33,6 +33,7 @@
     "@scenelock/incidents": "workspace:*",
     "@scenelock/media-processor": "workspace:*",
     "@scenelock/ports": "workspace:*",
+    "@scenelock/provenance": "workspace:*",
     "@scenelock/schema": "workspace:*",
     "@scenelock/verdict": "workspace:*",
     "@fastify/cors": "^10.0.1",

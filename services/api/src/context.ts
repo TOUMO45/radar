@@ -6,8 +6,10 @@ import {
   type Clock,
   type EventBusPort,
   type IdGen,
+  type ProvenancePort,
   type StoragePort,
 } from "@scenelock/ports";
+import { DryRunProvenanceAdapter } from "@scenelock/provenance";
 import { Archivist } from "@scenelock/archivist";
 import { DryRunMediaBackend, MediaProcessor } from "@scenelock/media-processor";
 import { GateClearance } from "@scenelock/gate-clearance";
@@ -34,6 +36,7 @@ export interface AppContext {
   loop: RemediationLoop;
   certifier: Certifier;
   saboteur: Saboteur;
+  provenance: ProvenancePort;
 }
 
 export function buildContext(overrides: Partial<AppContext> = {}): AppContext {
@@ -72,6 +75,8 @@ export function buildContext(overrides: Partial<AppContext> = {}): AppContext {
     });
   const certifier = overrides.certifier ?? new Certifier({ storage, clock, ids, events });
   const saboteur = overrides.saboteur ?? new Saboteur({ clock });
+  const provenance =
+    overrides.provenance ?? new DryRunProvenanceAdapter(() => clock.now());
   return {
     storage,
     events,
@@ -85,5 +90,6 @@ export function buildContext(overrides: Partial<AppContext> = {}): AppContext {
     loop,
     certifier,
     saboteur,
+    provenance,
   };
 }

@@ -183,6 +183,9 @@ importers:
       '@scenelock/ports':
         specifier: workspace:*
         version: link:../../packages/ports
+      '@scenelock/provenance':
+        specifier: workspace:*
+        version: link:../provenance
       '@scenelock/saboteur':
         specifier: workspace:*
         version: link:../saboteur
@@ -436,6 +439,25 @@ importers:
       '@scenelock/fixtures':
         specifier: workspace:*
         version: link:../../packages/fixtures
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
+
+  services/provenance:
+    dependencies:
+      '@scenelock/ports':
+        specifier: workspace:*
+        version: link:../../packages/ports
+      '@scenelock/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

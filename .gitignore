@@ -22,3 +22,6 @@ _incoming/
 
 # Grafana OSS MCP server binary (downloaded, 54MB — not committed)
 services/agent/bin/
+
+# ContentAuth c2patool binary (downloaded, ~29MB — not committed; see services/provenance/README.md)
+services/provenance/bin/
