@@ -27,9 +27,12 @@ import type {
  * fetches with no-store so the DRY_RUN verdict is always live.
  */
 const BASE = process.env.SCENELOCK_API_BASE ?? "http://localhost:4000";
+// Server components reach the API directly; the browser goes through the BFF
+// proxy (/api/*, D.2) so it's same-origin and the role/user context is injected.
+const base = () => (typeof window === "undefined" ? BASE : "/api");
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
+  const res = await fetch(`${base()}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -98,4 +101,60 @@ export const api = {
   // E&O / Underwriting Pack (roadmap R1)
   getUnderwritingPack: (sid: string) =>
     get<{ pack: UnderwritingPack }>(`/v1/scenes/${sid}/underwriting-pack`).then((r) => r.pack).catch(() => null),
+
+  // R4 technical delivery
+  getTechnicalDelivery: (sid: string) =>
+    get<{
+      scene_id: string;
+      master: Record<string, unknown> | null;
+      passed: boolean;
+      targets: Array<{ platform: string; label: string; citation: string; passed: boolean; checks: Array<{ param: string; required: string; observed: string; ok: boolean; severity: string }> }>;
+      findings: Finding[];
+    }>(`/v1/scenes/${sid}/technical-delivery`).catch(() => null),
+
+  // R6 music cue sheet
+  getCueSheet: (sid: string) =>
+    get<{
+      cue_sheet: { scene_id: string; production_title: string; cues: Array<Record<string, unknown>>; total_cues: number; cleared_cues: number; uncleared_cues: number; total_music_ms: number };
+      findings: Finding[];
+    }>(`/v1/scenes/${sid}/cue-sheet`).catch(() => null),
+
+  // R5 likeness marketplace
+  getLikenessOptions: (shotId: string) =>
+    get<{ shot_id: string; subject: string | null; replica_kind: string; quotes: Array<{ quote_id: string; provider: string; provider_label: string; scope: string; est_price_usd: number; turnaround_days: number; terms_url: string; eligible: boolean }> }>(
+      `/v1/shots/${shotId}/likeness-options`,
+    ).catch(() => null),
+};
+
+async function post<T>(path: string, body: unknown, role = "producer"): Promise<T> {
+  const res = await fetch(`${base()}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-scenelock-role": role },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+export const actions = {
+  // R5 clear a likeness via a provider
+  clearLikeness: (shotId: string, provider: string) =>
+    post<{ ok: boolean; compliance_before: number; compliance_after: number; clearance: { consent: { record_id: string; subject: string } } }>(
+      `/v1/shots/${shotId}/clear-likeness`,
+      { provider },
+      "legal",
+    ),
+  // R7 run the compliance diff over the loop
+  complianceDiff: (sid: string) =>
+    post<{
+      scene_id: string;
+      before: { violated_rule_ids: string[]; trust_score: number; trust_band: string };
+      after: { violated_rule_ids: string[]; trust_score: number; trust_band: string };
+      resolved_rule_ids: string[];
+      remaining_rule_ids: string[];
+      trust_delta: number;
+      verdict: string | null;
+      certificate_slug: string | null;
+    }>(`/v1/scenes/${sid}/compliance-diff`, {}),
 };

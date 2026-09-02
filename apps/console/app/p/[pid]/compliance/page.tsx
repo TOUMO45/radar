@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { SelfHealPanel } from "@/components/SelfHealPanel";
+import { LikenessResolver } from "@/components/LikenessResolver";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +94,9 @@ export default async function CompliancePage({
         </div>
       )}
 
+      {/* Self-heal & compliance diff (R7) */}
+      {sid && <SelfHealPanel sid={sid} />}
+
       {/* Delivery Readiness */}
       {delivery && (
         <div className="panel">
@@ -166,6 +171,7 @@ export default async function CompliancePage({
                   <div className="flex-1">
                     <div className="text-[13px]">{f.description}</div>
                     <div className="text-[11px] text-[var(--color-text-secondary)] mt-[2px]">↳ {f.recommendation}</div>
+                    {f.risk_class === "likeness_rights" && f.shot_id && <LikenessResolver shotId={f.shot_id} />}
                   </div>
                   <span className="mono text-[10px] text-[var(--color-text-secondary)] mt-[2px]">{f.shot_id}</span>
                 </div>

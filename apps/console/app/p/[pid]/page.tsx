@@ -52,46 +52,14 @@ export default async function ProductionOverview({
             </span>
           </Link>
         )}
-        <div className="ml-auto flex gap-4">
+        {certBundle && (
           <Link
-            href={`/p/${pid}/compliance`}
-            className="mono text-[12px] text-[var(--color-source-deterministic)] underline"
+            href={`/p/${pid}/certificates/${certBundle.certificate.certificate_id}`}
+            className="ml-auto mono text-[12px] text-[var(--color-status-certified)] underline"
           >
-            compliance →
+            signed certificate →
           </Link>
-          <Link
-            href={`/p/${pid}/underwriting`}
-            className="mono text-[12px] text-[var(--color-source-deterministic)] underline"
-          >
-            E&amp;O pack →
-          </Link>
-          <Link
-            href={`/p/${pid}/findings`}
-            className="mono text-[12px] text-[var(--color-source-deterministic)] underline"
-          >
-            finding inbox →
-          </Link>
-          <Link
-            href={`/p/${pid}/world`}
-            className="mono text-[12px] text-[var(--color-source-deterministic)] underline"
-          >
-            world state →
-          </Link>
-          <Link
-            href={`/p/${pid}/loop`}
-            className="mono text-[12px] text-[var(--color-source-deterministic)] underline"
-          >
-            loop monitor →
-          </Link>
-          {certBundle && (
-            <Link
-              href={`/p/${pid}/certificates/${certBundle.certificate.certificate_id}`}
-              className="mono text-[12px] text-[var(--color-status-certified)] underline"
-            >
-              certificate →
-            </Link>
-          )}
-        </div>
+        )}
       </div>
 
       <VerdictMathBar v={verdict} />

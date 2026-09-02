@@ -1,5 +1,6 @@
 import { DegradedBanner } from "@/components/DegradedBanner";
 import { CommandPalette } from "@/components/CommandPalette";
+import { SideNav } from "@/components/SideNav";
 
 export default async function ProductionLayout({
   children,
@@ -13,7 +14,10 @@ export default async function ProductionLayout({
     <>
       <DegradedBanner pid={pid} />
       <CommandPalette pid={pid} />
-      {children}
+      <div className="flex gap-5 items-start">
+        <SideNav pid={pid} />
+        <div className="flex-1 min-w-0">{children}</div>
+      </div>
     </>
   );
 }
