@@ -29,7 +29,16 @@ import { C2paState, Severity, Timestamp } from "./primitives.js";
  */
 
 /** Territories Radar encodes law for. GLOBAL = always-on baseline. */
-export const Jurisdiction = z.enum(["EU", "US_CA", "US_NY", "US_FEDERAL", "AU", "GLOBAL"]);
+export const Jurisdiction = z.enum([
+  "EU",
+  "US_CA",
+  "US_NY",
+  "US_FEDERAL",
+  "AU",
+  "UK",
+  "CN", // China — AI-generated content labeling measures (2025)
+  "GLOBAL",
+]);
 export type Jurisdiction = z.infer<typeof Jurisdiction>;
 
 /** Distribution / delivery targets, each with its own AI-disclosure policy. */
@@ -37,6 +46,8 @@ export const Platform = z.enum([
   "tiktok",
   "youtube",
   "meta",
+  "instagram",
+  "x", // X (formerly Twitter)
   "broadcast_tv",
   "svod", // subscription VOD (Netflix-style delivery)
   "theatrical",

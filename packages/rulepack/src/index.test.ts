@@ -112,6 +112,61 @@ describe("rulepack — NY synthetic performer disclosure", () => {
   });
 });
 
+describe("rulepack — R3 jurisdiction & platform expansion", () => {
+  it("US federal: a real public figure's replica without consent is a high violation", () => {
+    const p = prov({ replica_kind: "real_public_figure", depicts_real_person: true, subject_name: "Senator Alvarez" });
+    const v = evaluateShot(p, profile({ territories: ["US_FEDERAL"] }), { hasActiveConsent: noConsent, now: NOW });
+    const hit = v.find((x) => x.rule.id === "us_federal_digital_replica_consent");
+    expect(hit?.rule.severity).toBe("high");
+    // with consent on file, it clears
+    expect(evaluateShot(p, profile({ territories: ["US_FEDERAL"] }), { hasActiveConsent: withConsent, now: NOW })
+      .some((x) => x.rule.id === "us_federal_digital_replica_consent")).toBe(false);
+  });
+
+  it("China: an unlabeled AI shot trips BOTH the explicit and implicit label rules", () => {
+    const p = prov({ perceptible_label: { present: false }, c2pa: null, watermark: { present: false, method: "none", detectable: false } });
+    const v = ids(evaluateShot(p, profile({ territories: ["CN"] }), { hasActiveConsent: noConsent, now: NOW }));
+    expect(v).toContain("cn_ai_content_explicit_label");
+    expect(v).toContain("cn_ai_content_implicit_label");
+  });
+
+  it("China: a labeled + C2PA-marked shot satisfies both", () => {
+    const p = prov({ perceptible_label: { present: true } });
+    const v = ids(evaluateShot(p, profile({ territories: ["CN"] }), { hasActiveConsent: noConsent, now: NOW }));
+    expect(v).not.toContain("cn_ai_content_explicit_label");
+    expect(v).not.toContain("cn_ai_content_implicit_label");
+  });
+
+  it("UK: a realistic real-person deepfake without disclosure is flagged", () => {
+    const p = prov({ is_deepfake: true, depicts_real_person: true, perceptible_label: { present: false }, c2pa: null, watermark: { present: false, method: "none", detectable: false } });
+    const v = ids(evaluateShot(p, profile({ territories: ["UK"] }), { hasActiveConsent: noConsent, now: NOW }));
+    expect(v).toContain("uk_realistic_deepfake_disclosure");
+  });
+
+  it("Australia: a synthetic performer with no disclosure is flagged", () => {
+    const p = prov({ replica_kind: "synthetic_performer", perceptible_label: { present: false }, c2pa: null, watermark: { present: false, method: "none", detectable: false } });
+    const v = ids(evaluateShot(p, profile({ territories: ["AU"] }), { hasActiveConsent: noConsent, now: NOW }));
+    expect(v).toContain("au_broadcast_synthetic_voice_disclosure");
+  });
+
+  it("new platforms (Instagram, X, theatrical) fire only when targeted", () => {
+    // fully undisclosed: no C2PA, no watermark, no label
+    const p = prov({ is_deepfake: true, depicts_real_person: true, c2pa: null, perceptible_label: { present: false }, watermark: { present: false, method: "none", detectable: false } });
+    const none = ids(evaluateShot(p, profile(), { hasActiveConsent: noConsent, now: NOW }));
+    expect(none).not.toContain("instagram_ai_info_label");
+    const ig = ids(evaluateShot(p, profile({ platforms: ["instagram", "x", "theatrical"] }), { hasActiveConsent: noConsent, now: NOW }));
+    expect(ig).toContain("x_synthetic_media_label");
+    expect(ig).toContain("theatrical_dcp_provenance");
+    // instagram fires on any AI shot lacking disclosure
+    expect(ig).toContain("instagram_ai_info_label");
+  });
+
+  it("covers the expanded jurisdiction & platform sets", () => {
+    expect(COVERED_JURISDICTIONS).toEqual(expect.arrayContaining(["US_FEDERAL", "AU", "UK", "CN"]));
+    expect(COVERED_PLATFORMS).toEqual(expect.arrayContaining(["instagram", "x", "theatrical"]));
+  });
+});
+
 describe("rulepack — integrity", () => {
   it("every rule has a citation, effective date and a distinct id", () => {
     const seen = new Set<string>();

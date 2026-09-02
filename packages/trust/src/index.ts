@@ -59,12 +59,16 @@ const JURISDICTION_LABELS: Record<Jurisdiction, string> = {
   US_NY: "New York",
   US_FEDERAL: "US federal",
   AU: "Australia",
+  UK: "United Kingdom",
+  CN: "China (mainland)",
   GLOBAL: "Global baseline",
 };
 const PLATFORM_LABELS: Record<Platform, string> = {
   tiktok: "TikTok",
   youtube: "YouTube",
   meta: "Meta",
+  instagram: "Instagram",
+  x: "X",
   broadcast_tv: "Broadcast TV",
   svod: "SVOD (streaming)",
   theatrical: "Theatrical",

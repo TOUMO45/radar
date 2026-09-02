@@ -166,6 +166,90 @@ export const RULES: ComplianceRule[] = [
     violated: ({ prov }) => !prov.perceptible_label.present,
   },
 
+  // ----------------------------------------------------------- US_FEDERAL ----
+  {
+    id: "us_federal_digital_replica_consent",
+    scope: { jurisdiction: "US_FEDERAL" },
+    title: "A digital replica of a real person needs consent (federal)",
+    citation: "US NO FAKES Act (federal digital-replica right, proposed) + TAKE IT DOWN Act (2025)",
+    effective: "2025-05-19",
+    penalty: "civil liability per work; removal obligations (TAKE IT DOWN Act)",
+    risk_class: "likeness_rights",
+    severity: "high",
+    rule_key: "us_federal_digital_replica_no_consent",
+    recommendation:
+      "File a consent/release for this real person's digital replica in the Consent Registry, or replace the likeness, before US distribution.",
+    applies: (p) =>
+      p.depicts_real_person &&
+      (p.replica_kind === "living_performer" ||
+        p.replica_kind === "deceased_performer" ||
+        p.replica_kind === "real_public_figure"),
+    violated: (ctx) => !ctx.hasActiveConsent(ctx.prov.subject_name),
+  },
+
+  // ------------------------------------------------------------------- AU ----
+  {
+    id: "au_broadcast_synthetic_voice_disclosure",
+    scope: { jurisdiction: "AU" },
+    title: "Australia: synthetic voices / deep fakes in broadcast must be disclosed",
+    citation: "Australian broadcast & synthetic-voice disclosure code (2026)",
+    effective: "2026-01-01",
+    risk_class: "deepfake_disclosure",
+    severity: "medium",
+    rule_key: "au_synthetic_disclosure_missing",
+    recommendation:
+      "Add a clear disclosure for synthetic performers or deep fakes before Australian broadcast/streaming distribution.",
+    applies: (p) => p.is_deepfake || p.replica_kind === "synthetic_performer",
+    violated: ({ prov }) => !hasAnyDisclosure(prov),
+  },
+
+  // ------------------------------------------------------------------- UK ----
+  {
+    id: "uk_realistic_deepfake_disclosure",
+    scope: { jurisdiction: "UK" },
+    title: "UK: realistic deep fakes of real people should be disclosed",
+    citation: "UK Ofcom Broadcasting Code + Online Safety Act 2023 (synthetic media)",
+    effective: "2025-01-01",
+    risk_class: "deepfake_disclosure",
+    severity: "medium",
+    rule_key: "uk_deepfake_disclosure_missing",
+    recommendation:
+      "Provide a perceptible disclosure for realistic deep fakes depicting real people before UK distribution.",
+    applies: (p) => p.is_deepfake && p.depicts_real_person,
+    violated: ({ prov }) => !prov.perceptible_label.present && !hasAnyDisclosure(prov),
+  },
+
+  // ------------------------------------------------------------------- CN ----
+  {
+    id: "cn_ai_content_explicit_label",
+    scope: { jurisdiction: "CN" },
+    title: "China: AI-generated content needs an explicit label",
+    citation: "PRC Measures for Labeling AI-Generated Synthetic Content (eff. 2025-09-01)",
+    effective: "2025-09-01",
+    penalty: "administrative liability under CAC deep-synthesis rules",
+    risk_class: "synthetic_media_disclosure",
+    severity: "high",
+    rule_key: "cn_ai_explicit_label_missing",
+    recommendation:
+      "Add a viewer-visible ('explicit') AI label to the shot for mainland-China distribution; a metadata mark alone is not sufficient.",
+    applies: (p) => p.is_ai_generated,
+    violated: ({ prov }) => !prov.perceptible_label.present,
+  },
+  {
+    id: "cn_ai_content_implicit_label",
+    scope: { jurisdiction: "CN" },
+    title: "China: AI-generated content needs an implicit (metadata) label",
+    citation: "PRC Measures for Labeling AI-Generated Synthetic Content (eff. 2025-09-01)",
+    effective: "2025-09-01",
+    risk_class: "watermark_missing",
+    severity: "medium",
+    rule_key: "cn_ai_implicit_label_missing",
+    recommendation:
+      "Embed an 'implicit' machine-readable mark (C2PA metadata and/or watermark) as required alongside the explicit label.",
+    applies: (p) => p.is_ai_generated,
+    violated: ({ prov }) => !(hasValidC2pa(prov) || hasDetectableWatermark(prov)),
+  },
+
   // --------------------------------------------------------------- PLATFORM ----
   {
     id: "tiktok_aigc_label",
@@ -251,6 +335,48 @@ export const RULES: ComplianceRule[] = [
     applies: (p) => p.is_ai_generated,
     violated: ({ prov }) => !hasAnyDisclosure(prov),
   },
+  {
+    id: "instagram_ai_info_label",
+    scope: { platform: "instagram" },
+    title: "Instagram: photorealistic AI media needs an 'AI info' label",
+    citation: "Meta / Instagram AI-content labeling policy",
+    effective: "2024-05-01",
+    risk_class: "platform_policy",
+    severity: "low",
+    rule_key: "instagram_ai_info_label_missing",
+    recommendation:
+      "Provide an AI disclosure via a perceptible label or embedded C2PA/watermark metadata Instagram can read.",
+    applies: (p) => p.is_ai_generated,
+    violated: ({ prov }) => !hasAnyDisclosure(prov),
+  },
+  {
+    id: "x_synthetic_media_label",
+    scope: { platform: "x" },
+    title: "X: significantly altered/synthetic media should be labeled",
+    citation: "X synthetic & manipulated media policy",
+    effective: "2024-01-01",
+    risk_class: "platform_policy",
+    severity: "low",
+    rule_key: "x_synthetic_media_label_missing",
+    recommendation:
+      "Label deceptive/realistic synthetic media on X, or attach C2PA so the platform can surface provenance.",
+    applies: (p) => p.is_deepfake || p.depicts_real_person,
+    violated: ({ prov }) => !prov.perceptible_label.present && !hasValidC2pa(prov),
+  },
+  {
+    id: "theatrical_dcp_provenance",
+    scope: { platform: "theatrical" },
+    title: "Theatrical (DCP): AI shots should carry provenance for delivery QC",
+    citation: "Theatrical DCP delivery — C2PA provenance (2026 practice)",
+    effective: "2026-01-01",
+    risk_class: "platform_policy",
+    severity: "low",
+    rule_key: "theatrical_dcp_provenance_missing",
+    recommendation:
+      "Keep a valid C2PA manifest for each AI shot in the DCP delivery package for the distributor's QC.",
+    applies: (p) => p.is_ai_generated,
+    violated: ({ prov }) => !hasValidC2pa(prov),
+  },
 ];
 
 /** All jurisdictions/platforms the rulepack actually covers (for UI + docs). */
@@ -266,6 +392,10 @@ export const COVERED_PLATFORMS = Array.from(
  *  - EU AI Act Article 50 — transparency obligations, applies 2026-08-02.
  *  - California AB 1836 (deceased digital replicas), AB 2602 (living performers).
  *  - New York Synthetic Performer Disclosure Law (eff. 2026-06-09).
- *  - TikTok / YouTube / Meta AI-content labeling policies (2026).
+ *  - TikTok / YouTube / Meta / Instagram / X AI-content labeling policies (2026).
+ *  - US NO FAKES Act (proposed) + TAKE IT DOWN Act (2025) — federal digital replicas.
+ *  - Australian broadcast synthetic-voice code; UK Ofcom Code + Online Safety Act 2023.
+ *  - PRC Measures for Labeling AI-Generated Synthetic Content (eff. 2025-09-01).
+ *  - Theatrical DCP provenance (C2PA) delivery practice (2026).
  *  - C2PA Content Credentials (v2.3, Jan 2026) + Google SynthID.
  */
