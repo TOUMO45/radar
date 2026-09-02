@@ -183,6 +183,9 @@ importers:
       '@scenelock/incidents':
         specifier: workspace:*
         version: link:../incidents
+      '@scenelock/marketplace':
+        specifier: workspace:*
+        version: link:../marketplace
       '@scenelock/media-processor':
         specifier: workspace:*
         version: link:../media-processor
@@ -412,6 +415,22 @@ importers:
       '@scenelock/verdict':
         specifier: workspace:*
         version: link:../verdict
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
+
+  services/marketplace:
+    dependencies:
+      '@scenelock/ports':
+        specifier: workspace:*
+        version: link:../../packages/ports
+      '@scenelock/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+    devDependencies:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

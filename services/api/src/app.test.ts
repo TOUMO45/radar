@@ -479,6 +479,39 @@ describe("@scenelock/api — R2 provenance verification", () => {
   });
 });
 
+describe("@scenelock/api — R5 likeness-rights marketplace", () => {
+  it("GET /v1/shots/:id/likeness-options quotes the eligible provider for a deceased replica", async () => {
+    const res = await app.inject({ method: "GET", url: "/v1/shots/shot_4/likeness-options" });
+    expect(res.statusCode).toBe(200);
+    const r = res.json();
+    expect(r.replica_kind).toBe("deceased_performer");
+    const eligible = r.quotes.filter((q: { eligible: boolean }) => q.eligible).map((q: { provider: string }) => q.provider);
+    expect(eligible).toEqual(["cmg_worldwide"]);
+  });
+
+  it("clearing a likeness files a consent record and resolves the likeness finding", async () => {
+    const clear = await app.inject({
+      method: "POST",
+      url: "/v1/shots/shot_4/clear-likeness",
+      headers: { "x-scenelock-role": "legal" },
+      payload: { provider: "cmg_worldwide" },
+    });
+    expect(clear.statusCode).toBe(200);
+    const body = clear.json();
+    expect(body.ok).toBe(true);
+    expect(body.compliance_after).toBeLessThan(body.compliance_before);
+    expect(body.clearance.consent.status).toBe("active");
+    // the consent is now on file
+    const consent = (await app.inject({ method: "GET", url: "/v1/productions/p_dry/consent-records" })).json();
+    expect(consent.records.some((r: { subject: string }) => r.subject === "Vivian Marsh")).toBe(true);
+  });
+
+  it("clear-likeness is gated to Producer/Legal and needs a provider", async () => {
+    expect((await app.inject({ method: "POST", url: "/v1/shots/shot_4/clear-likeness", headers: { "x-scenelock-role": "qa_reviewer" }, payload: { provider: "cmg_worldwide" } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "POST", url: "/v1/shots/shot_4/clear-likeness", headers: { "x-scenelock-role": "legal" }, payload: {} })).statusCode).toBe(422);
+  });
+});
+
 describe("@scenelock/api — R4 technical delivery QC", () => {
   it("GET /v1/scenes/:sid/technical-delivery checks the master vs each targeted platform", async () => {
     // target SVOD so the seed master (HD 8-bit h264, -30 LKFS, no captions) fails

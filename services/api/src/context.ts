@@ -6,10 +6,12 @@ import {
   type Clock,
   type EventBusPort,
   type IdGen,
+  type LikenessMarketplacePort,
   type ProvenancePort,
   type StoragePort,
 } from "@scenelock/ports";
 import { DryRunProvenanceAdapter } from "@scenelock/provenance";
+import { mockLikenessMarketplace } from "@scenelock/marketplace";
 import { Archivist } from "@scenelock/archivist";
 import { DryRunMediaBackend, MediaProcessor } from "@scenelock/media-processor";
 import { GateClearance } from "@scenelock/gate-clearance";
@@ -37,6 +39,7 @@ export interface AppContext {
   certifier: Certifier;
   saboteur: Saboteur;
   provenance: ProvenancePort;
+  marketplace: LikenessMarketplacePort;
 }
 
 export function buildContext(overrides: Partial<AppContext> = {}): AppContext {
@@ -77,6 +80,7 @@ export function buildContext(overrides: Partial<AppContext> = {}): AppContext {
   const saboteur = overrides.saboteur ?? new Saboteur({ clock });
   const provenance =
     overrides.provenance ?? new DryRunProvenanceAdapter(() => clock.now());
+  const marketplace = overrides.marketplace ?? mockLikenessMarketplace;
   return {
     storage,
     events,
@@ -91,5 +95,6 @@ export function buildContext(overrides: Partial<AppContext> = {}): AppContext {
     certifier,
     saboteur,
     provenance,
+    marketplace,
   };
 }

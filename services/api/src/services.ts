@@ -556,6 +556,74 @@ export class Services {
     return { cue_sheet, findings };
   }
 
+  /**
+   * GET /v1/shots/:id/likeness-options (roadmap R5) — quotes from digital-replica
+   * licensing providers for a shot whose replica subject isn't yet cleared.
+   */
+  async likenessOptions(shotId: string) {
+    const prov = await this.ctx.storage.getProvenance(shotId);
+    if (!prov) return null;
+    if (prov.replica_kind === "none" || !prov.subject_name)
+      return { shot_id: shotId, subject: prov.subject_name, replica_kind: prov.replica_kind, quotes: [] };
+    const quotes = this.ctx.marketplace.quotes({
+      subject: prov.subject_name,
+      replica_kind: prov.replica_kind,
+      now: this.ctx.clock.now(),
+    });
+    return { shot_id: shotId, subject: prov.subject_name, replica_kind: prov.replica_kind, quotes };
+  }
+
+  /**
+   * POST /v1/shots/:id/clear-likeness (roadmap R5) — execute a provider's licence,
+   * file the consent record, link it to the shot, and re-evaluate compliance so
+   * the likeness finding resolves. The chained resolution path.
+   */
+  async clearLikeness(
+    shotId: string,
+    provider: string,
+    actor: string,
+  ): Promise<
+    | { ok: true; clearance: unknown; compliance_before: number; compliance_after: number }
+    | { ok: false; code: number; error: string }
+  > {
+    const prov = await this.ctx.storage.getProvenance(shotId);
+    if (!prov) return { ok: false, code: 404, error: "no provenance for shot" };
+    if (prov.replica_kind === "none" || !prov.subject_name)
+      return { ok: false, code: 422, error: "shot has no real/replica subject to clear" };
+
+    const quotes = this.ctx.marketplace.quotes({
+      subject: prov.subject_name,
+      replica_kind: prov.replica_kind,
+      now: this.ctx.clock.now(),
+    });
+    const quote = quotes.find((q) => q.provider === provider && q.eligible);
+    if (!quote)
+      return { ok: false, code: 422, error: `no eligible ${provider} quote for a ${prov.replica_kind}` };
+
+    const shot = await this.ctx.storage.getShot(shotId);
+    if (!shot) return { ok: false, code: 404, error: "shot not found" };
+    const sceneId = shot.scene_id;
+    const sc = await this.ctx.storage.getScene(sceneId);
+    const pid = sc?.production_id ?? "p_dry";
+
+    const before = (await this.complianceReport(sceneId))?.report.findings.filter((f) => f.risk_class === "likeness_rights").length ?? 0;
+
+    const clearance = this.ctx.marketplace.execute(quote, {
+      production_id: pid,
+      consent_id: this.ctx.ids.next("cr"),
+      uploaded_by: actor,
+      now: this.ctx.clock.now(),
+    });
+    await this.ctx.storage.putConsentRecord(clearance.consent);
+    // link the consent to the shot's provenance
+    await this.ctx.storage.putProvenance({ ...prov, consent_record_id: clearance.consent.record_id });
+
+    const after = (await this.complianceReport(sceneId))?.report.findings.filter((f) => f.risk_class === "likeness_rights").length ?? 0;
+    this.ctx.events.emitSse({ type: "finding.updated", data: { findingId: `likeness:${shotId}`, patch: { status: "resolved" } } });
+
+    return { ok: true, clearance, compliance_before: before, compliance_after: after };
+  }
+
   /** Reconcile incidents for a production against its current findings (C.3 Flow B). */
   async sweepIncidents(pid: string) {
     return this.ctx.incidents.sweep(pid, await this.tau(pid));

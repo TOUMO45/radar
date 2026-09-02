@@ -244,6 +244,26 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     },
   );
 
+  // Likeness-rights marketplace (roadmap R5) — quote + clear a replica likeness.
+  app.get<{ Params: { id: string } }>("/v1/shots/:id/likeness-options", async (req, reply) => {
+    const r = await svc.likenessOptions(req.params.id);
+    if (!r) return reply.code(404).send({ error: "no provenance for shot" });
+    return r;
+  });
+  app.post<{ Params: { id: string }; Body: { provider?: string } }>(
+    "/v1/shots/:id/clear-likeness",
+    async (req, reply) => {
+      const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+      if (!["producer", "legal", "sre_admin"].includes(role))
+        return reply.code(403).send({ error: "clearing a likeness requires Producer or Legal (D12)" });
+      if (!req.body?.provider) return reply.code(422).send({ error: "provider is required" });
+      const actor = (req.headers["x-scenelock-user"] as string) ?? "producer";
+      const r = await svc.clearLikeness(req.params.id, req.body.provider, actor);
+      if (!r.ok) return reply.code(r.code).send({ error: r.error });
+      return r;
+    },
+  );
+
   // Technical delivery QC (roadmap R4) — master vs IMF/broadcast/DCP spec.
   app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/technical-delivery", async (req, reply) => {
     const r = await svc.sceneTechnicalDelivery(req.params.sid);

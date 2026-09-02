@@ -30,6 +30,7 @@
     "@scenelock/gate-continuity": "workspace:*",
     "@scenelock/gate-delivery": "workspace:*",
     "@scenelock/gate-music": "workspace:*",
+    "@scenelock/marketplace": "workspace:*",
     "@scenelock/trust": "workspace:*",
     "@scenelock/underwriting": "workspace:*",
     "@scenelock/incidents": "workspace:*",
