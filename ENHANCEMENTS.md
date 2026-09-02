@@ -52,18 +52,24 @@ Delivered as `packages/underwriting` (deterministic, no keys), two API endpoints
 Next: a PDF render of the same pack (the `.md` is the intermediate) and a
 production-level roll-up across scenes.
 
-### R2 — Live watermark / SynthID verification (needs GCP)
-Today `ShotProvenance.watermark.detectable` is a declared input. Add a `ProvenancePort`
-with a real detector adapter: **C2PA manifest verification** (open) + **Google SynthID
-detection** (proprietary — needs Vertex/Gemini, so it becomes a wake-me seam). Turns
-"claims a watermark" into "watermark verified", which is what EU Art. 50(2) actually
-demands. *Deterministic core is codeable now; live detection needs your GCP creds.*
+### R2 — Live provenance verification  ✅ **SHIPPED**
+`ShotProvenance` used to be a *declared* input; R2 makes it *verified*. New
+`packages/ports` `ProvenancePort` + `services/provenance` with a **real C2PA
+verification adapter** running the ContentAuth **`c2patool`** over the asset bytes —
+manifest integrity (hashes/claim signature), trust (cert anchor), the AI-generation
+signal (IPTC `digitalSourceType`), and soft-binding watermark. `POST
+/v1/shots/:id/verify-provenance` folds the verified result back onto the shot so Trust
+/ Delivery / the E&O pack reflect **proof**, not a claim — exactly what EU Art. 50(2)
+demands. 12 tests, **including a live check of a genuine C2PA-signed image**. SynthID
+pixel-level detection stays a documented Vertex seam. *C2PA is open, no keys.*
 
-### R3 — Jurisdiction & platform expansion
-Add Australia (broadcast/radio synthetic-voice code), UK, China's labeling rules, US
-federal proposals (NO FAKES / TAKE IT DOWN), and more platforms (Instagram, X,
-theatrical DCP, IMF/SVOD technical delivery). The rulepack is pure data — each is a few
-cited entries + fixtures. *No keys.*
+### R3 — Jurisdiction & platform expansion  ✅ **SHIPPED**
+Added **US federal** (NO FAKES / TAKE IT DOWN — digital-replica consent), **Australia**
+(synthetic-voice disclosure), **UK** (Ofcom + Online Safety Act deepfake disclosure),
+**China** (PRC AI-content labeling measures, eff. 2025-09-01 — explicit + implicit
+label rules), and platforms **Instagram, X, theatrical DCP**. 8 cited rules, +7 tests.
+Verified live via delivery-readiness. *Pure cited data, no keys.* (IMF/SVOD *technical*
+QC — photon/loudness/caption — remains R4 below.)
 
 ### R4 — IMF / broadcast technical-delivery QC
 Beyond legal deliverability, validate **technical** delivery specs (Netflix/IMF photon
@@ -86,9 +92,12 @@ When the self-healing loop regenerates a shot, show the **before/after complianc
 delta** (e.g. "added perceptible label → EU Art. 50(4) resolved"), so the loop visibly
 earns back Trust Score. *Pure code over existing attempt records.*
 
-### R8 — Trust Score trend + portfolio roll-up
-Track Trust Score over time and across a slate; a producer dashboard of every
-production's deliverability at a glance. *Pure code.*
+### R8 — Portfolio / slate roll-up  ✅ **SHIPPED**
+A producer's executive view across the whole slate: every production's Trust Score,
+delivery-readiness and E&O-bindability, rolled up from the same per-scene numbers.
+`GET /v1/orgs/:orgId/portfolio` + a slate summary and per-production trust chip on the
+Productions home. +1 test; verified live. *Pure code.* (Trust *trend over time* needs a
+snapshot store — a natural follow-on.)
 
 ---
 
