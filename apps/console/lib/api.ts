@@ -8,6 +8,7 @@ import type {
   Entity,
   Finding,
   Incident,
+  Portfolio,
   Production,
   ProductionRollup,
   Scene,
@@ -40,6 +41,8 @@ export const api = {
     get<{ productions: ProductionRollup[] }>(`/v1/orgs/${orgId}/productions`).then(
       (r) => r.productions,
     ),
+  getPortfolio: (orgId = DEMO_ORG) =>
+    get<{ portfolio: Portfolio }>(`/v1/orgs/${orgId}/portfolio`).then((r) => r.portfolio).catch(() => null),
   getProduction: (pid: string) =>
     get<{ production: Production; verdict: SceneVerdict }>(`/v1/productions/${pid}`),
   listScenes: (pid: string) =>

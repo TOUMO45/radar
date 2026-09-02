@@ -57,6 +57,69 @@ export class Services {
     return this.ctx.storage.getProduction(pid);
   }
 
+  /**
+   * GET /v1/orgs/:orgId/portfolio (roadmap R8) — the slate at a glance: every
+   * production's Trust Score, deliverability and E&O-bindability, rolled up from
+   * the same per-scene numbers. The producer's executive view.
+   */
+  async portfolio(orgId: string) {
+    const prods = await this.ctx.storage.listProductions(orgId);
+    const entries = [];
+    for (const production of prods) {
+      const scenes = await this.ctx.storage.listScenes(production.production_id);
+      const lead = scenes[0]?.scene_id ?? null;
+      let trust_score = 100;
+      let trust_band: "green" | "amber" | "red" = "green";
+      let delivery_ready = true;
+      let blocked_targets: string[] = [];
+      let bindable = true;
+      let open_blocking = 0;
+      if (lead) {
+        const [ts, del, pack, v] = await Promise.all([
+          this.sceneTrustScore(lead),
+          this.sceneDeliveryReadiness(lead),
+          this.underwritingPack(lead),
+          this.sceneVerdict(lead),
+        ]);
+        if (ts) {
+          trust_score = ts.score;
+          trust_band = ts.band;
+        }
+        if (del) {
+          delivery_ready = del.ready;
+          blocked_targets = del.targets.filter((t) => !t.ready).map((t) => t.label);
+        }
+        if (pack) bindable = pack.bindable;
+        open_blocking = v?.inputs.blocking_open ?? 0;
+      }
+      entries.push({
+        production_id: production.production_id,
+        title: production.title,
+        lead_scene: lead,
+        trust_score,
+        trust_band,
+        delivery_ready,
+        blocked_targets,
+        bindable,
+        open_blocking,
+        usd_spent: production.spend.usd,
+      });
+    }
+    const slate_trust =
+      entries.length === 0
+        ? 0
+        : Math.round(entries.reduce((a, e) => a + e.trust_score, 0) / entries.length);
+    return {
+      org_id: orgId,
+      generated_at: this.ctx.clock.now(),
+      entries,
+      slate_trust,
+      deliverable_count: entries.filter((e) => e.delivery_ready).length,
+      bindable_count: entries.filter((e) => e.bindable).length,
+      production_count: entries.length,
+    };
+  }
+
   async listScenes(pid: string) {
     const scenes = await this.ctx.storage.listScenes(pid);
     return Promise.all(

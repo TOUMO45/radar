@@ -478,3 +478,24 @@ describe("@scenelock/api — R2 provenance verification", () => {
     expect((await app.inject({ method: "POST", url: "/v1/shots/nope/verify-provenance", payload: {} })).statusCode).toBe(404);
   });
 });
+
+describe("@scenelock/api — R8 portfolio roll-up", () => {
+  it("GET /v1/orgs/:orgId/portfolio rolls up trust + deliverability per production", async () => {
+    const res = await app.inject({ method: "GET", url: "/v1/orgs/org_demo/portfolio" });
+    expect(res.statusCode).toBe(200);
+    const { portfolio } = res.json();
+    expect(portfolio.org_id).toBe("org_demo");
+    expect(portfolio.production_count).toBeGreaterThan(0);
+    const entry = portfolio.entries[0];
+    expect(entry.production_id).toBeTruthy();
+    expect(entry.trust_score).toBeGreaterThanOrEqual(0);
+    expect(entry.trust_score).toBeLessThanOrEqual(100);
+    expect(["green", "amber", "red"]).toContain(entry.trust_band);
+    expect(typeof entry.delivery_ready).toBe("boolean");
+    expect(typeof entry.bindable).toBe("boolean");
+    // the seed's p_dry has open blocking issues → not bindable, red
+    expect(entry.bindable).toBe(false);
+    expect(entry.trust_band).toBe("red");
+    expect(portfolio.slate_trust).toBeGreaterThanOrEqual(0);
+  });
+});

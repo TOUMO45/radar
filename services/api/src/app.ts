@@ -34,6 +34,11 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     productions: await svc.listProductions(req.params.orgId),
   }));
 
+  // Portfolio / slate roll-up (roadmap R8) — Trust + deliverability at a glance.
+  app.get<{ Params: { orgId: string } }>("/v1/orgs/:orgId/portfolio", async (req) => ({
+    portfolio: await svc.portfolio(req.params.orgId),
+  }));
+
   app.get<{ Params: { pid: string } }>("/v1/productions/:pid", async (req, reply) => {
     const p = await svc.getProduction(req.params.pid);
     if (!p) return reply.code(404).send({ error: "production not found" });
