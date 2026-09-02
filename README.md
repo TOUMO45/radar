@@ -17,15 +17,19 @@ Design spec: `scenelock-v2-full-stack-design.md` (Parts A–H + appendices).
 
 ---
 
-## Status — all 8 phases (P0–P7) + 2026 compliance vertical + R1/R2/R3/R8 ✅  ·  **196 tests green across 22 packages, 43/43 turbo tasks**
+## Status — all 8 phases (P0–P7) + 2026 compliance vertical + roadmap R1–R8 ✅  ·  **219 tests green across 25 packages, 47/47 turbo tasks**
 
 Every phase from the spec's build plan (H.1) is implemented and verified against its
-exit criterion, plus shipped extensions on top: the **2026 synthetic-media compliance &
-Trust vertical**, the **E&O / Underwriting Pack** (R1), **live C2PA provenance
-verification** (R2), an **expanded jurisdiction/platform rulepack** (R3), and a
-**portfolio / slate roll-up** (R8). The deterministic engine runs **DRY_RUN** — no GCP
-project, no API keys — behind an adapter seam (`packages/ports`) so Firestore / Pub-Sub
-/ Vertex / KMS / Veo / Gemini adapters drop in later without touching service code.
+exit criterion, plus the **whole 2026 roadmap** shipped on top: the synthetic-media
+compliance & Trust vertical, the **E&O / Underwriting Pack** (R1), **live C2PA
+provenance verification** (R2), an **expanded jurisdiction/platform rulepack** (R3),
+**technical-delivery QC** (R4, EBU R128 / IMF / DCP), a **likeness-rights marketplace**
+(R5), **music cue sheets + certificate appendix** (R6), **compliance-diff over the
+self-healing loop** (R7), and a **portfolio / slate roll-up** (R8). The deterministic
+engine runs **DRY_RUN** — no GCP project, no API keys — behind an adapter seam
+(`packages/ports`) so Firestore / Pub-Sub / Vertex / KMS / Veo / Gemini adapters drop in
+later without touching service code. The console is a grouped **Control Room** app
+(sidebar nav, 14 screens) with live self-heal and licensing actions.
 
 The **agentic layer is live**: `services/agent` runs a real Gemini (Vertex) turn and a
 real Grafana Cloud MCP connection — the hard partner-track requirement — with the
@@ -50,6 +54,9 @@ budget/lock rules enforced deterministically in code. Its layered self-test
 | `packages/rulepack` | **2026 synthetic-media rulepack** — cited, dated rules over `ShotProvenance`: EU AI Act Art. 50(2)/(4), CA AB 1836/2602, NY synthetic-performer, TikTok/YouTube/Meta/SVOD/broadcast/festival AI-label policies. Pure data + `evaluateShot`. | R (2026) |
 | `services/gate-compliance` | **Compliance gate** — turns rulepack violations into Finding v2 (clearance-family), so a legal violation flows through `blocking` → verdict → loop → certificate. Deterministic + cited. | R (2026) |
 | `packages/trust` | **Radar Trust Score** (one 0–100 headline per scene) + **Delivery Readiness** (per-territory / per-platform can-ship matrix). Deterministic roll-ups; any open blocking legal issue forces RED. | R (2026) |
+| `services/gate-delivery` | **Technical delivery QC** (roadmap R4) — the assembled master vs each platform's IMF/broadcast/DCP spec (loudness, captions, frame rate, resolution, colour, codec); cited standards (EBU R128, SMPTE ST 2067, DCI DCP). | R4 (2026) |
+| `services/gate-music` | **Music rights** (roadmap R6) — generates the PRO cue sheet and flags uncleared cues (`music_rights`); the cue sheet rides in the signed certificate's appendix. | R6 (2026) |
+| `services/marketplace` | **Likeness-rights marketplace** (roadmap R5) — quote + execute digital-replica licences (Vermillio/Loti/CMG) behind `LikenessMarketplacePort`; issues the consent record that clears the finding. | R5 (2026) |
 | `services/provenance` | **Live provenance verification** (roadmap R2) — turns *declared* C2PA/watermark into *verified* by running the ContentAuth **`c2patool`** over asset bytes (manifest integrity, cert trust, IPTC AI-source signal, soft-binding watermark). `ProvenancePort` seam + DRY_RUN adapter. Deterministic parser, tested against real tool output and a genuine signed image. | R2 (2026) |
 | `packages/underwriting` | **E&O / Underwriting Pack** (roadmap R1) — one deterministic bundle a distributor's insurer reads to bind AI-content coverage: per-shot AI-disclosure schedule, consent ledger, provenance/C2PA chain, clearance + compliance findings with waiver trail, the signed certificate, trust + delivery readiness, and an **underwriter's checklist** (each 2026 E&O requirement → pass/fail with citation). `assembleUnderwritingPack` + `renderUnderwritingMarkdown`. | R1 (2026) |
 | `services/certifier` | **Deterministic** certificate (Appendix D) — never an agent (D2). Compile → sha-256 **hash chain** per production → **KMS signature** (mock HMAC; Cloud KMS + rotation later, G-15) → verification slug. `verify(slug)` recomputes the hash, walks the chain, checks the signature. Signs on LOCK. | P6 |

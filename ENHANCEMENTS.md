@@ -71,26 +71,36 @@ label rules), and platforms **Instagram, X, theatrical DCP**. 8 cited rules, +7 
 Verified live via delivery-readiness. *Pure cited data, no keys.* (IMF/SVOD *technical*
 QC — photon/loudness/caption — remains R4 below.)
 
-### R4 — IMF / broadcast technical-delivery QC
-Beyond legal deliverability, validate **technical** delivery specs (Netflix/IMF photon
-checks, loudness, caption presence, frame-rate/color). A `gate-delivery` producing
-`platform_policy`-style findings. Positions Radar next to Baton/Vidchecker but
-AI-native. *Mostly code; deep media QC may want ffmpeg (already a dep of media-processor).*
+### R4 — Technical-delivery QC  ✅ **SHIPPED**
+A new `delivery` gate (`services/gate-delivery`) checks a scene's assembled master
+against each platform's **technical** spec — loudness, captions, frame rate, resolution,
+colour space, bit depth, codec — with real cited standards (EBU R128 broadcast,
+Netflix/IMF SVOD, DCI DCP, YouTube). `GET /v1/scenes/:sid/technical-delivery` + a
+Delivery QC console page. Positions Radar next to Baton/Vidchecker, AI-native. 10 tests.
+*(Deep frame-level media QC via ffmpeg is a further extension; the spec/threshold
+engine is complete.)*
 
-### R5 — Likeness-rights marketplace hooks
-When a `likeness_rights` finding fires (AB 1836/2602), offer a resolution path: link to
-a digital-replica licensing provider (Vermillio / Loti-style) to clear the performer,
-then auto-attach the consent record. *Integration seam; needs a partner API key.*
+### R5 — Likeness-rights marketplace  ✅ **SHIPPED**
+A `likeness_rights` finding now offers a resolution path: `GET /v1/shots/:id/likeness-
+options` returns quotes from digital-replica licensing providers (Vermillio / Loti /
+CMG for estates), `POST …/clear-likeness` executes one, files the consent record and
+links it to the shot — the finding resolves. Deterministic `MockLikenessMarketplace`
+behind `LikenessMarketplacePort` (real partner API later). 7 tests; wired into the
+compliance UI (verified live: findings 1 → 0).
 
-### R6 — Music & audio rights deepening
-Extend the audio sub-gate with production-music cue-sheet generation and a rights
-ledger, so the certificate carries a full music-clearance appendix. *Code + existing
-audio pipeline.*
+### R6 — Music & audio rights  ✅ **SHIPPED**
+`services/gate-music` generates the PRO-standard **cue sheet** from per-scene music cues
+and turns uncleared cues into `music_rights` findings; the signed **certificate carries
+the cue sheet as an appendix**. `GET /v1/scenes/:sid/cue-sheet` + a Music & Cues page.
+5 tests; certificate verify unaffected.
 
-### R7 — "Compliance diff" over the loop
-When the self-healing loop regenerates a shot, show the **before/after compliance
-delta** (e.g. "added perceptible label → EU Art. 50(4) resolved"), so the loop visibly
-earns back Trust Score. *Pure code over existing attempt records.*
+### R7 — Compliance diff over the loop  ✅ **SHIPPED**
+The self-healing loop now emits *marked* shots (a compliant re-render sets C2PA +
+watermark + label on provenance, never fabricating consent). `POST /v1/scenes/:sid/
+compliance-diff` snapshots before, runs the loop, snapshots after and returns the delta
+— resolved rules, remaining rules, and the Trust delta. A live "run self-heal" panel
+shows Trust climbing (21 → 43 on the demo) while consent rules correctly stay open.
+1 test; nothing in the lock path changed.
 
 ### R8 — Portfolio / slate roll-up  ✅ **SHIPPED**
 A producer's executive view across the whole slate: every production's Trust Score,
