@@ -7,6 +7,7 @@ import {
   type VerifyResult,
 } from "@scenelock/schema";
 import { computeVerdict } from "@scenelock/verdict";
+import { generateCueSheet } from "@scenelock/gate-music";
 
 /**
  * Certifier — a deterministic Cloud Run service, never an agent (D2). Compiles
@@ -71,10 +72,11 @@ export class Certifier {
     const production = await this.d.storage.getProduction(scene.production_id);
     if (!production) throw new Error(`certifier: unknown production for ${sceneId}`);
 
-    const [shots, findings, entities] = await Promise.all([
+    const [shots, findings, entities, musicCues] = await Promise.all([
       this.d.storage.listShots(sceneId),
       this.d.storage.listFindings(production.production_id, { scene: sceneId }),
       this.d.storage.listEntities(production.production_id),
+      this.d.storage.listMusicCues(sceneId),
     ]);
 
     const verdict = computeVerdict({
@@ -117,6 +119,7 @@ export class Certifier {
       c2pa_manifests: shots
         .map((s) => s.c2pa?.manifest_uri)
         .filter((u): u is string => !!u),
+      music_appendix: musicCues.length ? generateCueSheet(musicCues, production.title, now) : null,
       disclaimer: DISCLAIMER,
       schema_version: "2.1" as const,
       prior_certificate_hash: prior?.payload.certificate_hash ?? null,

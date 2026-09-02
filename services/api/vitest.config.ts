@@ -16,6 +16,7 @@ export default defineConfig({
       "@scenelock/gate-compliance": p("../gate-compliance/src/index.ts"),
       "@scenelock/gate-continuity": p("../gate-continuity/src/index.ts"),
       "@scenelock/gate-delivery": p("../gate-delivery/src/index.ts"),
+      "@scenelock/gate-music": p("../gate-music/src/index.ts"),
       "@scenelock/trust": p("../../packages/trust/src/index.ts"),
       "@scenelock/underwriting": p("../../packages/underwriting/src/index.ts"),
       "@scenelock/provenance": p("../provenance/src/index.ts"),

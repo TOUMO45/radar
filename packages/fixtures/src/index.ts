@@ -17,6 +17,7 @@ import type {
   ShotContinuity,
   ShotProvenance,
   TechnicalMaster,
+  MusicCue,
   ShotText,
   StateEvent,
 } from "@scenelock/schema";
@@ -26,6 +27,7 @@ import * as tokenSeed from "./tokens.js";
 import { continuity as continuitySeed } from "./continuity.js";
 import { provenance as provenanceSeed, complianceProfile as complianceProfileSeed } from "./provenance.js";
 import { technicalMaster as technicalMasterSeed } from "./delivery.js";
+import { musicCues as musicCuesSeed } from "./music.js";
 
 export { ORG_ID, PRODUCTION_ID, SCENE_ID } from "./dry-run.js";
 
@@ -46,6 +48,7 @@ export interface DryRunStore {
   provenance: Record<string, ShotProvenance>;
   complianceProfile: ComplianceProfile;
   technicalMaster: Record<string, TechnicalMaster>;
+  musicCues: Record<string, MusicCue[]>;
 }
 
 /** Fixtures are plain JSON-safe data, so a JSON round-trip is a sufficient deep copy. */
@@ -69,6 +72,7 @@ export function getDryRunStore(): DryRunStore {
     provenance: provenanceSeed,
     complianceProfile: complianceProfileSeed,
     technicalMaster: technicalMasterSeed,
+    musicCues: musicCuesSeed,
   });
 }
 

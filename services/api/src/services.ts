@@ -12,6 +12,7 @@ import { computeVerdict } from "@scenelock/verdict";
 import { evaluateBudget } from "@scenelock/fixer";
 import { gateCompliance, type ComplianceReport } from "@scenelock/gate-compliance";
 import { gateDelivery } from "@scenelock/gate-delivery";
+import { musicRightsGate } from "@scenelock/gate-music";
 import { computeDeliveryReadiness, computeTrustScore } from "@scenelock/trust";
 import { assembleUnderwritingPack, renderUnderwritingMarkdown } from "@scenelock/underwriting";
 import { C2paToolProvenanceAdapter, c2patoolAvailable } from "@scenelock/provenance";
@@ -532,6 +533,27 @@ export class Services {
       now: this.ctx.clock.now(),
     });
     return { ...report, findings };
+  }
+
+  /**
+   * GET /v1/scenes/:sid/cue-sheet (roadmap R6) — the PRO cue sheet + music-rights
+   * findings for uncleared cues. The same cue sheet rides along in the signed
+   * certificate's `music_appendix`.
+   */
+  async sceneCueSheet(sid: string) {
+    const scene = await this.ctx.storage.getScene(sid);
+    if (!scene) return null;
+    const production = await this.ctx.storage.getProduction(scene.production_id);
+    if (!production) return null;
+    const cues = await this.ctx.storage.listMusicCues(sid);
+    const { cue_sheet, findings } = musicRightsGate.run({
+      scene_id: sid,
+      cues,
+      production_title: production.title,
+      tau: production.settings.tau,
+      now: this.ctx.clock.now(),
+    });
+    return { cue_sheet, findings };
   }
 
   /** Reconcile incidents for a production against its current findings (C.3 Flow B). */

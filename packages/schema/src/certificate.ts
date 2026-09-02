@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { GcsUri, SCHEMA_VERSION, Timestamp } from "./primitives.js";
+import { CueSheet } from "./music.js";
 
 /**
  * Clearance certificate payload (spec §8, Appendix D).
@@ -23,6 +24,8 @@ export const CertificatePayload = z
       embedding_versions: z.array(z.string()).default([]),
     }),
     c2pa_manifests: z.array(GcsUri).default([]),
+    /** music-clearance appendix — the PRO cue sheet (R6), null when no cues. */
+    music_appendix: CueSheet.nullable().default(null),
     disclaimer: z.literal(DISCLAIMER).default(DISCLAIMER),
     schema_version: z.literal(SCHEMA_VERSION).default(SCHEMA_VERSION),
     prior_certificate_hash: z.string().nullable().default(null),

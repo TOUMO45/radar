@@ -23,6 +23,7 @@ import type {
   ShotContinuity,
   ShotProvenance,
   TechnicalMaster,
+  MusicCue,
   ShotText,
   StateEvent,
 } from "@scenelock/schema";
@@ -105,6 +106,9 @@ export interface StoragePort {
   // technical delivery master (R4)
   getTechnicalMaster(sceneId: string): Promise<TechnicalMaster | null>;
   putTechnicalMaster(m: TechnicalMaster): Promise<void>;
+  // music cues (R6)
+  listMusicCues(sceneId: string): Promise<MusicCue[]>;
+  putMusicCues(sceneId: string, cues: MusicCue[]): Promise<void>;
 
   // MCP tokens + audit log (E.6, E.7)
   listApiTokens(orgId: string): Promise<ApiToken[]>;
@@ -313,6 +317,12 @@ export class InMemoryStorage implements StoragePort {
   }
   async putTechnicalMaster(m: TechnicalMaster) {
     (this.d.technicalMaster ??= {})[m.scene_id] = m;
+  }
+  async listMusicCues(sceneId: string) {
+    return this.d.musicCues?.[sceneId] ?? [];
+  }
+  async putMusicCues(sceneId: string, cues: MusicCue[]) {
+    (this.d.musicCues ??= {})[sceneId] = cues;
   }
 
   async listApiTokens(orgId: string) {

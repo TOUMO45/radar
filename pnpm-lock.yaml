@@ -177,6 +177,9 @@ importers:
       '@scenelock/gate-delivery':
         specifier: workspace:*
         version: link:../gate-delivery
+      '@scenelock/gate-music':
+        specifier: workspace:*
+        version: link:../gate-music
       '@scenelock/incidents':
         specifier: workspace:*
         version: link:../incidents
@@ -245,6 +248,9 @@ importers:
 
   services/certifier:
     dependencies:
+      '@scenelock/gate-music':
+        specifier: workspace:*
+        version: link:../gate-music
       '@scenelock/ports':
         specifier: workspace:*
         version: link:../../packages/ports
@@ -366,6 +372,19 @@ importers:
         version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
 
   services/gate-delivery:
+    dependencies:
+      '@scenelock/schema':
+        specifier: workspace:*
+        version: link:../../packages/schema
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)(lightningcss@1.32.0)
+
+  services/gate-music:
     dependencies:
       '@scenelock/schema':
         specifier: workspace:*

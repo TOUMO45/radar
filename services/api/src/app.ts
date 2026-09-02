@@ -251,6 +251,13 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     return r;
   });
 
+  // Music cue sheet + rights (roadmap R6) — PRO cue sheet; rides the certificate.
+  app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/cue-sheet", async (req, reply) => {
+    const r = await svc.sceneCueSheet(req.params.sid);
+    if (!r) return reply.code(404).send({ error: "scene not found" });
+    return r;
+  });
+
   // E&O / Underwriting Pack (roadmap R1) — the binder a distributor's insurer reads.
   app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/underwriting-pack", async (req, reply) => {
     const pack = await svc.underwritingPack(req.params.sid);

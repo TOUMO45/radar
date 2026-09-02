@@ -506,6 +506,27 @@ describe("@scenelock/api — R4 technical delivery QC", () => {
   });
 });
 
+describe("@scenelock/api — R6 music cue sheet + rights", () => {
+  it("GET /v1/scenes/:sid/cue-sheet returns the cue sheet + a finding for the unlicensed cue", async () => {
+    const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/cue-sheet" });
+    expect(res.statusCode).toBe(200);
+    const { cue_sheet, findings } = res.json();
+    expect(cue_sheet.total_cues).toBe(3);
+    expect(cue_sheet.uncleared_cues).toBe(1);
+    // the featured unlicensed "Gimme Shelter"-style cue
+    const mus = findings.find((f: { finding_id: string }) => f.finding_id === "f_mus_cue_shelter");
+    expect(mus.risk_class).toBe("music_rights");
+    expect(mus.severity).toBe("high");
+  });
+
+  it("the signed certificate carries the cue sheet as a music appendix", async () => {
+    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/auto-remediate" });
+    const { certificate } = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12/certificate" })).json();
+    expect(certificate.payload.music_appendix).toBeTruthy();
+    expect(certificate.payload.music_appendix.total_cues).toBe(3);
+  });
+});
+
 describe("@scenelock/api — R8 portfolio roll-up", () => {
   it("GET /v1/orgs/:orgId/portfolio rolls up trust + deliverability per production", async () => {
     const res = await app.inject({ method: "GET", url: "/v1/orgs/org_demo/portfolio" });

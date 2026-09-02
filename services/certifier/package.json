@@ -16,6 +16,7 @@
   "dependencies": {
     "@scenelock/ports": "workspace:*",
     "@scenelock/schema": "workspace:*",
+    "@scenelock/gate-music": "workspace:*",
     "@scenelock/verdict": "workspace:*"
   },
   "devDependencies": {
