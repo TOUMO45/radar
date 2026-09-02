@@ -244,6 +244,13 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     },
   );
 
+  // Compliance diff over the loop (roadmap R7) — before/after the self-heal.
+  app.post<{ Params: { sid: string } }>("/v1/scenes/:sid/compliance-diff", async (req, reply) => {
+    const scene = await svc.getScene(req.params.sid);
+    if (!scene) return reply.code(404).send({ error: "scene not found" });
+    return svc.complianceDiff(req.params.sid);
+  });
+
   // Likeness-rights marketplace (roadmap R5) — quote + clear a replica likeness.
   app.get<{ Params: { id: string } }>("/v1/shots/:id/likeness-options", async (req, reply) => {
     const r = await svc.likenessOptions(req.params.id);

@@ -479,6 +479,29 @@ describe("@scenelock/api — R2 provenance verification", () => {
   });
 });
 
+describe("@scenelock/api — R7 compliance diff over the loop", () => {
+  it("the self-heal marks shots → marking rules resolve; consent rules remain", async () => {
+    // target EU + California so both marking and consent rules are in force
+    await app.inject({
+      method: "PUT",
+      url: "/v1/productions/p_dry/compliance-profile",
+      headers: { "x-scenelock-role": "legal" },
+      payload: { territories: ["GLOBAL", "EU", "US_CA"], platforms: [] },
+    });
+    const res = await app.inject({ method: "POST", url: "/v1/scenes/sc_12/compliance-diff" });
+    expect(res.statusCode).toBe(200);
+    const d = res.json();
+    // the loop earns back trust
+    expect(d.after.trust_score).toBeGreaterThanOrEqual(d.before.trust_score);
+    expect(d.resolved_rule_ids.length).toBeGreaterThan(0);
+    // a machine-readable-marking rule (shot_6) resolves via the compliant re-render
+    expect(d.resolved_rule_ids).toContain("eu_ai_act_art50_2_machine_readable");
+    // the deceased-replica CONSENT rule cannot be render-fixed — it remains
+    expect(d.remaining_rule_ids).toContain("ca_ab1836_deceased_replica_consent");
+    expect(d.verdict).toBe("LOCKED");
+  });
+});
+
 describe("@scenelock/api — R5 likeness-rights marketplace", () => {
   it("GET /v1/shots/:id/likeness-options quotes the eligible provider for a deceased replica", async () => {
     const res = await app.inject({ method: "GET", url: "/v1/shots/shot_4/likeness-options" });

@@ -150,6 +150,20 @@ export class MockVeoBackend implements VeoBackend {
       void scene;
     }
 
+    // A compliant re-render emits a *marked* shot: valid C2PA, a detectable
+    // watermark and a perceptible AI label (R2/R7). We upgrade the shot's
+    // provenance marking on every regeneration — but never fabricate consent
+    // (a deceased/living replica still needs a real licence, cleared via R5).
+    const prov = await this.deps.storage.getProvenance(shot.shot_id);
+    if (prov && prov.is_ai_generated) {
+      await this.deps.storage.putProvenance({
+        ...prov,
+        c2pa: { present: true, valid: true, manifest_uri: prov.c2pa?.manifest_uri ?? null },
+        watermark: { present: true, method: "synthid", detectable: true },
+        perceptible_label: { present: true },
+      });
+    }
+
     await this.deps.storage.putShot(updated);
     return { ok: true, shot: updated, cost };
   }

@@ -624,6 +624,52 @@ export class Services {
     return { ok: true, clearance, compliance_before: before, compliance_after: after };
   }
 
+  /** A compact compliance snapshot for a scene (R7). */
+  private async complianceSnapshot(sid: string): Promise<{
+    violated_rule_ids: string[];
+    trust_score: number;
+    trust_band: string;
+    delivery_ready: boolean;
+    blocked_targets: string[];
+  }> {
+    const [report, trust, delivery] = await Promise.all([
+      this.complianceReport(sid),
+      this.sceneTrustScore(sid),
+      this.sceneDeliveryReadiness(sid),
+    ]);
+    return {
+      violated_rule_ids: Array.from(new Set((report?.report.violations ?? []).map((v) => v.rule.id))).sort(),
+      trust_score: trust?.score ?? 0,
+      trust_band: trust?.band ?? "red",
+      delivery_ready: delivery?.ready ?? false,
+      blocked_targets: (delivery?.targets ?? []).filter((t) => !t.ready).map((t) => t.label),
+    };
+  }
+
+  /**
+   * POST /v1/scenes/:sid/compliance-diff (roadmap R7) — snapshot compliance,
+   * run the self-healing loop, snapshot again, and return the delta. The loop
+   * visibly earns back Trust: a compliant re-render marks each shot, so
+   * marking/disclosure rules resolve (consent-based rules still need R5).
+   */
+  async complianceDiff(sid: string) {
+    const before = await this.complianceSnapshot(sid);
+    const remediation = await this.autoRemediateScene(sid);
+    const after = await this.complianceSnapshot(sid);
+    const resolved = before.violated_rule_ids.filter((r) => !after.violated_rule_ids.includes(r));
+    const remaining = after.violated_rule_ids;
+    return {
+      scene_id: sid,
+      before,
+      after,
+      resolved_rule_ids: resolved,
+      remaining_rule_ids: remaining,
+      trust_delta: after.trust_score - before.trust_score,
+      verdict: remediation.verdict?.verdict ?? null,
+      certificate_slug: remediation.certificate?.slug ?? null,
+    };
+  }
+
   /** Reconcile incidents for a production against its current findings (C.3 Flow B). */
   async sweepIncidents(pid: string) {
     return this.ctx.incidents.sweep(pid, await this.tau(pid));
