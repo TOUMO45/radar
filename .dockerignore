@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+.git
+**/.turbo
+**/dist
+**/.next
+services/provenance/bin
+services/provenance/test-fixtures
+**/.env
+**/.env.*
+!**/.env.example
+TEST_REPORT.md
+pentest_radar.sh
+*.log
