@@ -4,6 +4,19 @@ import { FixedClock, InMemoryEventBus, InMemoryStorage, SeqIdGen } from "@scenel
 import { Archivist } from "@scenelock/archivist";
 import { buildApp } from "./app.js";
 import { buildContext } from "./context.js";
+import { DEV_ROLE_TOKENS } from "./auth.js";
+
+/**
+ * Elevated roles are now proven with a bearer token (VULN-1 fix, 2026-09-03) —
+ * a bare `x-scenelock-role` header is no longer authoritative. These helpers
+ * build the right header for a test that needs to act as that role; tests that
+ * intentionally exercise the LOW-privilege / denied path still send no token
+ * (or an explicit x-scenelock-role header, which the server now ignores for
+ * authority — the default is always qa_reviewer without a valid token).
+ */
+const asRole = (role: "producer" | "legal" | "sre_admin") => ({
+  authorization: `Bearer ${DEV_ROLE_TOKENS[role]}`,
+});
 
 let app: FastifyInstance;
 
@@ -80,7 +93,7 @@ describe("@scenelock/api — F.1 surface (P0 carry-over)", () => {
     const r = await app.inject({
       method: "POST",
       url: "/v1/findings/f_identity_drift/adjudication",
-      headers: { "x-scenelock-role": "producer" },
+      headers: asRole("producer"),
       payload: { decision: "waive", reason: "looks fine" },
     });
     expect(r.statusCode).toBe(422);
@@ -91,7 +104,7 @@ describe("@scenelock/api — F.1 surface (P0 carry-over)", () => {
       const r = await app.inject({
         method: "POST",
         url: `/v1/findings/${fid}/adjudication`,
-        headers: { "x-scenelock-role": "producer" },
+        headers: asRole("producer"),
         payload: { decision: "waive", reason: `waived for demo — documented rationale for ${fid}` },
       });
       expect(r.statusCode).toBe(201);
@@ -180,7 +193,7 @@ describe("@scenelock/api — P2 media-processor + gate-clearance", () => {
     const r = await app.inject({
       method: "POST",
       url: "/v1/scenes/sc_12/rerun-gates",
-      headers: { "x-scenelock-role": "sre_admin" },
+      headers: asRole("sre_admin"),
     });
     expect(r.statusCode).toBe(200);
     const body = r.json();
@@ -210,7 +223,7 @@ describe("@scenelock/api — P2 media-processor + gate-clearance", () => {
     await app.inject({
       method: "POST",
       url: "/v1/scenes/sc_12/rerun-gates",
-      headers: { "x-scenelock-role": "sre_admin" },
+      headers: asRole("sre_admin"),
     });
     const v = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12/verdict" })).json();
     expect(v.verdict).toBe("HELD");
@@ -222,7 +235,7 @@ describe("@scenelock/api — P2 media-processor + gate-clearance", () => {
     await app.inject({
       method: "POST",
       url: "/v1/scenes/sc_12/rerun-gates",
-      headers: { "x-scenelock-role": "sre_admin" },
+      headers: asRole("sre_admin"),
     });
     const m = (await app.inject({ method: "GET", url: "/v1/shots/shot_4/media" })).json().media;
     expect(m.audio.sample_rate_hz).toBe(16000);
@@ -244,7 +257,7 @@ describe("@scenelock/api — P3 incidents + audit", () => {
     await app.inject({
       method: "POST",
       url: "/v1/findings/f_real_person/adjudication",
-      headers: { "x-scenelock-role": "producer" },
+      headers: asRole("producer"),
       payload: { decision: "waive", reason: "cleared with brand legal — license 4417-EU on file" },
     });
     const { incidents } = (
@@ -268,7 +281,7 @@ describe("@scenelock/api — P3 incidents + audit", () => {
       (await app.inject({ method: "GET", url: "/v1/admin/audit", headers: { "x-scenelock-role": "qa_reviewer" } })).statusCode,
     ).toBe(403);
     expect(
-      (await app.inject({ method: "GET", url: "/v1/admin/audit", headers: { "x-scenelock-role": "sre_admin" } })).statusCode,
+      (await app.inject({ method: "GET", url: "/v1/admin/audit", headers: asRole("sre_admin") })).statusCode,
     ).toBe(200);
   });
 });
@@ -276,14 +289,14 @@ describe("@scenelock/api — P3 incidents + audit", () => {
 describe("@scenelock/api — P4 remediation loop + budget governor", () => {
   it("POST /v1/scenes/:sid/auto-remediate drives HELD → LOCKED", async () => {
     // normalise clearance findings first
-    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/rerun-gates", headers: { "x-scenelock-role": "sre_admin" } });
+    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/rerun-gates", headers: asRole("sre_admin") });
     const before = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12/verdict" })).json();
     expect(before.verdict).toBe("HELD");
 
     const r = await app.inject({
       method: "POST",
       url: "/v1/scenes/sc_12/auto-remediate",
-      headers: { "x-scenelock-role": "producer" },
+      headers: asRole("producer"),
     });
     expect(r.statusCode).toBe(200);
     const body = r.json();
@@ -295,9 +308,9 @@ describe("@scenelock/api — P4 remediation loop + budget governor", () => {
   });
 
   it("auto-remediate signs a certificate on LOCK, and it verifies", async () => {
-    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/rerun-gates", headers: { "x-scenelock-role": "sre_admin" } });
+    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/rerun-gates", headers: asRole("sre_admin") });
     const rem = (
-      await app.inject({ method: "POST", url: "/v1/scenes/sc_12/auto-remediate", headers: { "x-scenelock-role": "producer" } })
+      await app.inject({ method: "POST", url: "/v1/scenes/sc_12/auto-remediate", headers: asRole("producer") })
     ).json();
     expect(rem.verdict.verdict).toBe("LOCKED");
     expect(rem.certificate).not.toBeNull();
@@ -317,7 +330,7 @@ describe("@scenelock/api — P4 remediation loop + budget governor", () => {
 
   it("POST /v1/bench/run publishes a SceneBench scorecard; GET /v1/bench serves it", async () => {
     expect((await app.inject({ method: "GET", url: "/v1/bench" })).statusCode).toBe(404);
-    const card = (await app.inject({ method: "POST", url: "/v1/bench/run", headers: { "x-scenelock-role": "sre_admin" } })).json();
+    const card = (await app.inject({ method: "POST", url: "/v1/bench/run", headers: asRole("sre_admin") })).json();
     expect(card.release_ok).toBe(true);
     expect(card.fp_rate_at_tau).toBe(0);
     expect((await app.inject({ method: "GET", url: "/v1/bench" })).json().corpus_version).toBe(card.corpus_version);
@@ -358,7 +371,7 @@ describe("@scenelock/api — P4 remediation loop + budget governor", () => {
   });
 
   it("rerun-gates now produces gate-computed continuity findings (P5)", async () => {
-    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/rerun-gates", headers: { "x-scenelock-role": "sre_admin" } });
+    await app.inject({ method: "POST", url: "/v1/scenes/sc_12/rerun-gates", headers: asRole("sre_admin") });
     const cont = (
       await app.inject({ method: "GET", url: "/v1/productions/p_dry/findings?gate=continuity&stage=shot" })
     ).json().findings as Array<{ finding_id: string; risk_class: string; blocking: boolean }>;
@@ -377,7 +390,7 @@ describe("@scenelock/api — P4 remediation loop + budget governor", () => {
     const r = await app.inject({
       method: "POST",
       url: "/v1/productions/p_dry/reanchor",
-      headers: { "x-scenelock-role": "sre_admin" },
+      headers: asRole("sre_admin"),
       payload: { embedding_model_version: "gemini-embed-002@2026-11" },
     });
     expect(r.statusCode).toBe(200);
@@ -398,13 +411,13 @@ describe("@scenelock/api — P4 remediation loop + budget governor", () => {
       (await app.inject({ method: "POST", url: "/v1/productions/p_dry/kill-switch", headers: { "x-scenelock-role": "qa_reviewer" }, payload: { engaged: true, phrase: "PAUSE LOOP" } })).statusCode,
     ).toBe(403);
     expect(
-      (await app.inject({ method: "POST", url: "/v1/productions/p_dry/kill-switch", headers: { "x-scenelock-role": "producer" }, payload: { engaged: true } })).statusCode,
+      (await app.inject({ method: "POST", url: "/v1/productions/p_dry/kill-switch", headers: asRole("producer"), payload: { engaged: true } })).statusCode,
     ).toBe(422);
 
     const ok = await app.inject({
       method: "POST",
       url: "/v1/productions/p_dry/kill-switch",
-      headers: { "x-scenelock-role": "producer" },
+      headers: asRole("producer"),
       payload: { engaged: true, phrase: "PAUSE LOOP" },
     });
     expect(ok.statusCode).toBe(200);
@@ -485,7 +498,7 @@ describe("@scenelock/api — R7 compliance diff over the loop", () => {
     await app.inject({
       method: "PUT",
       url: "/v1/productions/p_dry/compliance-profile",
-      headers: { "x-scenelock-role": "legal" },
+      headers: asRole("legal"),
       payload: { territories: ["GLOBAL", "EU", "US_CA"], platforms: [] },
     });
     const res = await app.inject({ method: "POST", url: "/v1/scenes/sc_12/compliance-diff" });
@@ -516,7 +529,7 @@ describe("@scenelock/api — R5 likeness-rights marketplace", () => {
     const clear = await app.inject({
       method: "POST",
       url: "/v1/shots/shot_4/clear-likeness",
-      headers: { "x-scenelock-role": "legal" },
+      headers: asRole("legal"),
       payload: { provider: "cmg_worldwide" },
     });
     expect(clear.statusCode).toBe(200);
@@ -531,7 +544,7 @@ describe("@scenelock/api — R5 likeness-rights marketplace", () => {
 
   it("clear-likeness is gated to Producer/Legal and needs a provider", async () => {
     expect((await app.inject({ method: "POST", url: "/v1/shots/shot_4/clear-likeness", headers: { "x-scenelock-role": "qa_reviewer" }, payload: { provider: "cmg_worldwide" } })).statusCode).toBe(403);
-    expect((await app.inject({ method: "POST", url: "/v1/shots/shot_4/clear-likeness", headers: { "x-scenelock-role": "legal" }, payload: {} })).statusCode).toBe(422);
+    expect((await app.inject({ method: "POST", url: "/v1/shots/shot_4/clear-likeness", headers: asRole("legal"), payload: {} })).statusCode).toBe(422);
   });
 });
 
@@ -541,7 +554,7 @@ describe("@scenelock/api — R4 technical delivery QC", () => {
     await app.inject({
       method: "PUT",
       url: "/v1/productions/p_dry/compliance-profile",
-      headers: { "x-scenelock-role": "legal" },
+      headers: asRole("legal"),
       payload: { territories: ["GLOBAL"], platforms: ["svod"] },
     });
     const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/technical-delivery" });
@@ -601,5 +614,50 @@ describe("@scenelock/api — R8 portfolio roll-up", () => {
     expect(entry.bindable).toBe(false);
     expect(entry.trust_band).toBe("red");
     expect(portfolio.slate_trust).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("@scenelock/api — VULN-1 regression: a raw x-scenelock-role header grants nothing", () => {
+  it("certify: claiming producer via a bare header, with no bearer token, is refused", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/v1/scenes/sc_12/certify",
+      headers: { "x-scenelock-role": "producer" }, // no Authorization — must NOT be trusted
+    });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it("kill-switch: claiming producer via a bare header is refused", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/v1/productions/p_dry/kill-switch",
+      headers: { "x-scenelock-role": "producer" },
+      payload: { engaged: true, phrase: "PAUSE LOOP" },
+    });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it("waiving a blocking HIGH finding: claiming producer via a bare header is refused", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/v1/findings/f_real_person/adjudication",
+      headers: { "x-scenelock-role": "producer" },
+      payload: { decision: "waive", reason: "forged role claim — should still be refused (D12)" },
+    });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it("admin audit: claiming sre_admin via a bare header is refused", async () => {
+    const r = await app.inject({
+      method: "GET",
+      url: "/v1/admin/audit",
+      headers: { "x-scenelock-role": "sre_admin" },
+    });
+    expect(r.statusCode).toBe(403);
+  });
+
+  it("but a real bearer token for that role IS honored (the legitimate path still works)", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/admin/audit", headers: asRole("sre_admin") });
+    expect(r.statusCode).toBe(200);
   });
 });

@@ -4,11 +4,15 @@ import { AdjudicationDecision } from "@scenelock/schema";
 import { registerVerifyRoute } from "@scenelock/verifier";
 import { buildContext, type AppContext } from "./context.js";
 import { Services } from "./services.js";
+import { resolveIdentity } from "./auth.js";
 
 /**
  * REST surface — spec F.1. P0 read paths + the adjudication write path;
  * P1 adds World State (archivist) read + propose routes.
- * RBAC (B.1) is header-stubbed for now; real enforcement is E.10 / P3.
+ * RBAC (B.1): elevated roles are proven via a bearer token (services/api/src/
+ * auth.ts, DEV/DEMO secrets), never trusted from a raw client header — fixed
+ * 2026-09-03 (VULN-1 audit finding: header-stubbed RBAC was bypassable by any
+ * caller setting x-scenelock-role directly).
  */
 export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -75,7 +79,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
 
   // supervisor slice (P2): media-processor + gate-clearance across the scene
   app.post<{ Params: { sid: string } }>("/v1/scenes/:sid/rerun-gates", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "sre_admin", "qa_reviewer"].includes(role))
       return reply.code(403).send({ error: "rerun-gates requires Producer, SRE or QA Reviewer" });
     try {
@@ -87,7 +91,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
 
   // --- remediation loop (P4) -----------------------------------------
   app.post<{ Params: { sid: string } }>("/v1/scenes/:sid/auto-remediate", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "sre_admin", "qa_reviewer"].includes(role))
       return reply.code(403).send({ error: "auto-remediate requires Producer, SRE or QA Reviewer" });
     try {
@@ -104,7 +108,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
 
   // manual regeneration (Flow D) — consumes budget, flagged manual
   app.post<{ Params: { fid: string } }>("/v1/findings/:fid/regenerate", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "sre_admin", "qa_reviewer"].includes(role))
       return reply.code(403).send({ error: "manual regenerate requires Reviewer+ (B.1)" });
     return svc.remediateFinding(req.params.fid, { manual: true });
@@ -119,7 +123,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   app.post<{ Params: { pid: string }; Body: { engaged?: boolean; phrase?: string } }>(
     "/v1/productions/:pid/kill-switch",
     async (req, reply) => {
-      const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+      const { role } = resolveIdentity(req.headers);
       if (!["producer", "sre_admin"].includes(role))
         return reply.code(403).send({ error: "kill switch is Producer or SRE only (B.1, E.12)" });
       const engaged = req.body?.engaged ?? true;
@@ -169,8 +173,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     if (!parsed.success)
       return reply.code(422).send({ error: "decision must be confirm|waive|override" });
 
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
-    const by = (req.headers["x-scenelock-user"] as string) ?? "u_demo";
+    const { role, by } = resolveIdentity(req.headers);
 
     const result = await svc.adjudicate(req.params.fid, {
       decision: parsed.data,
@@ -260,11 +263,10 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   app.post<{ Params: { id: string }; Body: { provider?: string } }>(
     "/v1/shots/:id/clear-likeness",
     async (req, reply) => {
-      const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+      const { role, by: actor } = resolveIdentity(req.headers);
       if (!["producer", "legal", "sre_admin"].includes(role))
         return reply.code(403).send({ error: "clearing a likeness requires Producer or Legal (D12)" });
       if (!req.body?.provider) return reply.code(422).send({ error: "provider is required" });
-      const actor = (req.headers["x-scenelock-user"] as string) ?? "producer";
       const r = await svc.clearLikeness(req.params.id, req.body.provider, actor);
       if (!r.ok) return reply.code(r.code).send({ error: r.error });
       return r;
@@ -311,7 +313,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     Params: { pid: string };
     Body: { territories?: string[]; platforms?: string[] };
   }>("/v1/productions/:pid/compliance-profile", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "legal", "sre_admin"].includes(role))
       return reply.code(403).send({ error: "editing the compliance profile requires Producer, Legal or SRE (B.1)" });
     const p = await svc.setComplianceProfile(req.params.pid, {
@@ -325,7 +327,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   app.post<{ Params: { pid: string }; Body: { embedding_model_version?: string } }>(
     "/v1/productions/:pid/reanchor",
     async (req, reply) => {
-      const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+      const { role } = resolveIdentity(req.headers);
       if (!["producer", "sre_admin"].includes(role))
         return reply.code(403).send({ error: "re-anchor is Producer or SRE only (G-09)" });
       const v = req.body?.embedding_model_version ?? `gemini-embed-001@${new Date().getFullYear()}-re`;
@@ -417,7 +419,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   });
 
   app.post<{ Params: { sid: string } }>("/v1/scenes/:sid/certify", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "legal", "sre_admin"].includes(role))
       return reply.code(403).send({ error: "certify requires Producer, Legal or SRE" });
     try {
@@ -443,7 +445,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     return card;
   });
   app.post("/v1/bench/run", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "sre_admin"].includes(role))
       return reply.code(403).send({ error: "running SceneBench requires Producer or SRE" });
     return svc.runSceneBench();
@@ -451,7 +453,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
 
   // --- audit (E.10) ---------------------------------------------
   app.get<{ Querystring: { org?: string; limit?: string } }>("/v1/admin/audit", async (req, reply) => {
-    const role = (req.headers["x-scenelock-role"] as string) ?? "qa_reviewer";
+    const { role } = resolveIdentity(req.headers);
     if (!["producer", "sre_admin"].includes(role))
       return reply.code(403).send({ error: "audit query requires Producer or SRE (B.1)" });
     const org = req.query.org ?? "org_demo";

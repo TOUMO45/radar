@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { FixedClock, InMemoryEventBus, InMemoryStorage, SeqIdGen } from "@scenelock/ports";
@@ -5,6 +6,8 @@ import { Archivist } from "@scenelock/archivist";
 import { buildContext } from "@scenelock/api/context";
 import { DEMO_MCP_TOKEN } from "@scenelock/fixtures";
 import { buildMcp } from "./app.js";
+
+const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
 let app: FastifyInstance;
 let storage: InMemoryStorage;
@@ -135,5 +138,74 @@ describe("@scenelock/mcp — tools", () => {
     await call("get_verdict", { scene_id: "sc_12" });
     const tok = (await storage.listApiTokens("org_demo"))[0]!;
     expect(tok.last_used_at).not.toBeNull();
+  });
+});
+
+describe("@scenelock/mcp — VULN-1 regression: adjudicate:write cannot self-declare an elevated role", () => {
+  const PLAIN_TOKEN = "test_plain_adjudicate_write_only";
+  const PLAIN_AUTH = { authorization: `Bearer ${PLAIN_TOKEN}` };
+
+  beforeEach(async () => {
+    // a token with adjudicate:write but NOT adjudicate:waive_high — the scope
+    // that (post-fix) is the only thing allowed to authorize a HIGH-severity
+    // blocking waiver. Before the fix, this token could reach "producer"
+    // authority just by putting role:"producer" in user_context.
+    await storage.putApiToken({
+      token_id: "tok_test_plain",
+      org_id: "org_demo",
+      name: "test — adjudicate:write only",
+      hash: sha256(PLAIN_TOKEN),
+      prefix: "test_plain_",
+      scopes: ["adjudicate:write", "findings:read"],
+      created_by: "test",
+      created_at: "2026-08-25T00:00:00.000Z",
+      last_used_at: null,
+      revoked: false,
+    });
+  });
+
+  it("claiming user_context.role:\"producer\" does NOT grant authority to waive a blocking HIGH finding", async () => {
+    const { body } = await call(
+      "submit_adjudication",
+      {
+        finding_id: "f_real_person", // HIGH severity, blocking in the seed
+        decision: "waive",
+        reason: "forged role claim — should still be refused (D12)",
+        user_context: { user_id: "attacker", role: "producer" },
+      },
+      PLAIN_AUTH,
+    );
+    // the tool call itself succeeds (scope check passes — it has adjudicate:write),
+    // but the underlying adjudicate() call must still refuse: real authority is
+    // "qa_reviewer" regardless of the claimed role.
+    expect(body.error).toBeTruthy();
+    expect(body.error.message).toMatch(/producer or legal/i);
+  });
+
+  it("the SAME token, WITH adjudicate:waive_high granted, CAN waive the blocking HIGH finding", async () => {
+    await storage.putApiToken({
+      token_id: "tok_test_elevated",
+      org_id: "org_demo",
+      name: "test — adjudicate:waive_high granted",
+      hash: sha256("test_elevated_token"),
+      prefix: "test_elevated_",
+      scopes: ["adjudicate:write", "adjudicate:waive_high", "findings:read"],
+      created_by: "test",
+      created_at: "2026-08-25T00:00:00.000Z",
+      last_used_at: null,
+      revoked: false,
+    });
+    const { body } = await call(
+      "submit_adjudication",
+      {
+        finding_id: "f_real_person",
+        decision: "waive",
+        reason: "legitimately elevated token — should succeed (D12)",
+        user_context: { user_id: "legal_head" },
+      },
+      { authorization: "Bearer test_elevated_token" },
+    );
+    expect(body.result).toBeTruthy();
+    expect(body.result.structuredContent.finding.status).toBe("waived");
   });
 });

@@ -141,7 +141,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: "submit_adjudication",
     description:
-      "Submit a human adjudication (confirm | waive | override). Requires user_context.user_id — a machine cannot sign off as a human.",
+      "Submit a human adjudication (confirm | waive | override). Requires user_context.user_id — a machine cannot sign off as a human. Waiving a blocking HIGH finding additionally requires the token to hold the adjudicate:waive_high scope (D12) — user_context.role is a descriptive label only and is never treated as authority.",
     scope: "adjudicate:write",
     inputSchema: {
       type: "object",
@@ -157,15 +157,21 @@ export const TOOLS: ToolDef[] = [
         },
       },
     },
-    handler: async ({ services }, args) => {
+    // VULN fix (2026-09-03): `role` used to come straight from the caller's
+    // own `user_context.role` — any token with adjudicate:write could
+    // self-declare role:"producer" and waive a blocking HIGH finding,
+    // bypassing D12. Authority now comes ONLY from a scope explicitly granted
+    // to the token; the client-supplied role is never consulted for authority.
+    handler: async ({ services }, args, principal) => {
       const uc = (args.user_context ?? {}) as { user_id?: string; role?: string };
       if (!uc.user_id) throw new ToolError(-32602, "user_context.user_id is required (E.6)");
       const decision = str(args.decision, "decision") as "confirm" | "waive" | "override";
+      const canWaiveHigh = principal.scopes.includes("adjudicate:waive_high");
       const res = await services.adjudicate(str(args.finding_id, "finding_id"), {
         decision,
         reason: typeof args.reason === "string" ? args.reason : "",
         by: uc.user_id,
-        role: uc.role ?? "qa_reviewer",
+        role: canWaiveHigh ? "producer" : "qa_reviewer",
       });
       if (!res.ok) throw new ToolError(res.code === 403 ? -32003 : -32602, res.error);
       return { adjudication: res.adjudication, finding: res.finding, verdict: res.verdict };

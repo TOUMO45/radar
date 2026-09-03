@@ -11,6 +11,16 @@ export const McpScope = z.enum([
   "world_state:read",
   "world_state:propose",
   "adjudicate:write",
+  /**
+   * Separately-granted: authority to waive a blocking HIGH-severity finding
+   * (D12's human-role gate — normally Producer/Legal only). Added 2026-09-03
+   * (VULN audit fix): `submit_adjudication` used to accept a client-supplied
+   * `user_context.role` as the authority for this decision — any token with
+   * plain `adjudicate:write` could self-declare `role: "producer"` and bypass
+   * D12. Now the tool never trusts that field for authority; only a token
+   * explicitly granted this scope can waive a blocking HIGH finding.
+   */
+  "adjudicate:waive_high",
   "certificates:read",
 ]);
 export type McpScope = z.infer<typeof McpScope>;
