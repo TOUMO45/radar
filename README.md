@@ -17,7 +17,7 @@ Design spec: `scenelock-v2-full-stack-design.md` (Parts A–H + appendices).
 
 ---
 
-## Status — all 8 phases (P0–P7) + 2026 compliance vertical + roadmap R1–R8 + Quick Scan + 6 additive "wow" routes ✅  ·  **250 tests green across 25 packages, 49/49 turbo test tasks, 51/51 typecheck**
+## Status — all 8 phases (P0–P7) + 2026 compliance vertical + roadmap R1–R8 + Quick Scan + 6 additive "wow" routes ✅  ·  **256 tests green across 25 packages, 49/49 turbo test tasks, 51/51 typecheck**
 
 Every phase from the spec's build plan (H.1) is implemented and verified against its
 exit criterion, plus the **whole 2026 roadmap** shipped on top: the synthetic-media
@@ -227,7 +227,7 @@ sweep is `test_radar_e2e.sh`.
 | `POST /v1/quickscan` → `GET /v1/quickscan/:scanId` | **Shareable Quick Scan link.** Each scan is now persisted under a 128-bit id (`qs_` + 16 random bytes) and re-openable read-only. `POST` response gains `scan_id`; everything else is unchanged. In-process store (`quickscan-store.ts`), bounded, single-instance for the demo. |
 | `GET /v1/partners` | **Partner map.** Vermillio · Loti · Interra BATON · Audible Magic · Grafana Cloud · Vertex/Gemini, each with a one-line role and an honest `status`: `live` **only** for Grafana + Vertex (agent goals G5/G6 pass live); `integration_port_defined` for the rest, each citing a real typed seam — `LikenessMarketplacePort`, and the new `TechnicalQcPort` / `MusicIdPort` in `packages/ports`. |
 | `GET /v1/compliance/deadlines` | **Regulatory exposure clock.** The cited `effective` dates already in `packages/rulepack` (EU AI Act Art. 50, CA AB 1836/2602, NY, PRC, US NO FAKES/TAKE IT DOWN, platform policies), with `days_remaining` computed server-side from real `now`. Every tracked obligation is already in force, so the number is negative — days a production has been non-compliant if undisclosed. |
-| `POST /v1/assistant/ask` | **Findings-grounded assistant.** `{production_id, question}`. Fetches the production's real findings, Trust Score and open-blocking count **server-side first**, passes them as grounding, calls Gemini with **zero tools** — it cannot regenerate, sign or adjudicate, and refuses if asked ("I cannot…"). Findings text is declared DATA-not-instructions (spec G-13). Rate-limited by the **same** preHandler as `/v1/quickscan`; same safety settings as the Python agent. Vertex `gemini-2.5-flash` when `GOOGLE_GENAI_USE_VERTEXAI=TRUE`, else Gemini API `gemini-3.6-flash`. |
+| `POST /v1/assistant/ask` | **Findings-grounded assistant.** `{production_id, question}`. Fetches the production's real findings, Trust Score and open-blocking count **server-side first**, passes them as grounding, calls Gemini with **zero tools** — it cannot regenerate, sign or adjudicate, refuses if asked ("I cannot…"), and resists prompt-injection in the question. Findings text is declared DATA-not-instructions (spec G-13). Rate-limited by the **same** preHandler as `/v1/quickscan`; same safety settings as the Python agent. Tries **Vertex first** (`gemini-2.5-flash` → `2.0-flash` → `2.5-pro`, when `GOOGLE_GENAI_USE_VERTEXAI=TRUE`) then the **Gemini API** (`gemini-3.6-flash` → `2.5-flash`), with backoff + a 25 s timeout; if every backend fails it still returns the real grounded numbers (HTTP 200, `model: null`). Response carries `grounding_check` — did the answer actually cite the real count. |
 
 **Grafana wiring.** Features 1, 2, 3 and 6 each post a real annotation to Grafana
 Cloud's HTTP Annotations API (`services/api/src/grafana.ts`) using the identical
@@ -235,6 +235,11 @@ service-account token the Python agent hands to `mcp-grafana` — direct HTTP, n
 MCP round-trip (the agent's tool filter has no annotations tool). Fail-open: unset
 env → no-op; error → swallowed; 3 s timeout. `E&O pack generated for sc_12`,
 `Badge served: … (Cleared)`, `Quick Scan run: 2 findings`, `Assistant asked: …`.
+
+**Deploy.** `bash deploy_wow.sh` — one command: optional Vertex IAM grant → build
+the Cloud Run env file from `services/agent/.env` → `gcloud run deploy --source .`
+(`--min/--max-instances=1`) → mint a fresh certificate → PASS/FAIL sweep of all
+six routes + the Grafana annotation count on the live URL.
 
 ---
 

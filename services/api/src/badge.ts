@@ -24,6 +24,11 @@ function textWidth(s: string): number {
   return Math.ceil(s.length * 6.6);
 }
 
+/** Restrict a slug to the characters a real verification slug can contain. */
+export function sanitizeSlug(raw: string): string {
+  return raw.replace(/\.svg$/i, "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
+}
+
 export function renderBadgeSvg(status: string): string {
   const cleared = status === "valid";
   const label = "RADAR";

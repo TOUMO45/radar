@@ -15,18 +15,30 @@ import type { QuickScanResult } from "@scenelock/schema";
  * this same tiny interface.
  */
 
-const MAX_ENTRIES = 500;
-const store = new Map<string, QuickScanResult>();
+const MAX_ENTRIES = 2_000;
+
+interface Entry {
+  result: QuickScanResult;
+  stored_at: number;
+}
+
+const store = new Map<string, Entry>();
 
 export function putScan(scanId: string, result: QuickScanResult): void {
-  // bounded FIFO — evict the oldest when full
-  if (store.size >= MAX_ENTRIES) {
+  // bounded FIFO — evict the oldest when full (Map preserves insertion order)
+  while (store.size >= MAX_ENTRIES) {
     const oldest = store.keys().next().value;
-    if (oldest !== undefined) store.delete(oldest);
+    if (oldest === undefined) break;
+    store.delete(oldest);
   }
-  store.set(scanId, result);
+  store.set(scanId, { result, stored_at: Date.now() });
 }
 
 export function getScan(scanId: string): QuickScanResult | null {
-  return store.get(scanId) ?? null;
+  return store.get(scanId)?.result ?? null;
+}
+
+/** Test-only: clear the store so suites don't bleed into each other. */
+export function __resetScanStore(): void {
+  store.clear();
 }

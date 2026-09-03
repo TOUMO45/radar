@@ -11,7 +11,7 @@ import { annotate } from "./grafana.js";
 import { PARTNERS } from "./partners.js";
 import { computeDeadlines } from "./deadlines.js";
 import { askAssistant } from "./assistant.js";
-import { renderBadgeSvg } from "./badge.js";
+import { renderBadgeSvg, sanitizeSlug } from "./badge.js";
 
 /**
  * REST surface — spec F.1. P0 read paths + the adjudication write path;
@@ -335,7 +335,7 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   // FEATURE 2 — Public embeddable badge. No auth (same trust model as
   // /verify/:slug; exposes strictly less — a colour + short label only).
   app.get<{ Params: { slug: string } }>("/v1/badge/:slug", async (req, reply) => {
-    const slug = req.params.slug.replace(/\.svg$/i, "").slice(0, 64);
+    const slug = sanitizeSlug(req.params.slug);
     const result = await ctx.certifier.verify(slug);
     const svg = renderBadgeSvg(result.status);
     await annotate(
@@ -388,11 +388,24 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
 
       await annotate(`Assistant asked: ${question.slice(0, 80)}`, ["assistant", grounding.scene_id]);
 
+      // askAssistant never throws — it degrades to grounded facts with model:null.
+      // The catch is a last-resort net so this route cannot 5xx on the demo.
       try {
         const out = await askAssistant({ grounding, question });
         return { ...out, grounding };
       } catch (err) {
-        return reply.code(502).send({ error: `assistant model call failed: ${(err as Error).message}`, grounding });
+        return {
+          grounded: true,
+          model: null,
+          grounding_check: true,
+          note: `assistant fell back to grounded facts: ${(err as Error).message}`,
+          answer:
+            `RADAR state for ${grounding.scene_id}: verdict ${grounding.verdict} ` +
+            `(${grounding.verdict_reason}), Trust ${grounding.trust_score ?? "n/a"}, ` +
+            `${grounding.open_blocking_count} open blocking finding(s): ` +
+            `${grounding.open_blocking_finding_ids.join(", ") || "none"}.`,
+          grounding,
+        };
       }
     },
   );
