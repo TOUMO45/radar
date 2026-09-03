@@ -6,6 +6,12 @@ import { buildContext, type AppContext } from "./context.js";
 import { Services } from "./services.js";
 import { resolveIdentity } from "./auth.js";
 import { registerQuickScanRoute } from "./quickscan-route.js";
+import { rateLimit } from "./rate-limit.js";
+import { annotate } from "./grafana.js";
+import { PARTNERS } from "./partners.js";
+import { computeDeadlines } from "./deadlines.js";
+import { askAssistant } from "./assistant.js";
+import { renderBadgeSvg } from "./badge.js";
 
 /**
  * REST surface — spec F.1. P0 read paths + the adjudication write path;
@@ -308,6 +314,88 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
       .header("content-disposition", `inline; filename="underwriting-${req.params.sid}.md"`)
       .send(md);
   });
+
+  // ===================================================================
+  // "Wow features" — additive, grounded in real competitive gaps. Every
+  // route below is new surface only; none changes an existing handler.
+  // ===================================================================
+
+  // FEATURE 1 — Live E&O / Underwriting Pack, production-scoped. Same
+  // deterministic assembler as the scene routes above; `generated_at` is
+  // request-time (SystemClock in prod), so two calls seconds apart differ —
+  // it is genuinely regenerated, never a cached file. Accepts a production id
+  // or a bare scene id.
+  app.get<{ Params: { pid: string } }>("/v1/productions/:pid/underwriting-pack", async (req, reply) => {
+    const bundle = await svc.underwritingPackBundle(req.params.pid);
+    if (!bundle) return reply.code(404).send({ error: "no production or scene for that id" });
+    await annotate(`E&O pack generated for ${bundle.scene_id}`, ["underwriting", bundle.scene_id]);
+    return bundle;
+  });
+
+  // FEATURE 2 — Public embeddable badge. No auth (same trust model as
+  // /verify/:slug; exposes strictly less — a colour + short label only).
+  app.get<{ Params: { slug: string } }>("/v1/badge/:slug", async (req, reply) => {
+    const slug = req.params.slug.replace(/\.svg$/i, "").slice(0, 64);
+    const result = await ctx.certifier.verify(slug);
+    const svg = renderBadgeSvg(result.status);
+    await annotate(
+      `Badge served: ${slug} (${result.status === "valid" ? "Cleared" : "Not Certified"})`,
+      ["badge"],
+    );
+    return reply
+      .header("content-type", "image/svg+xml; charset=utf-8")
+      .header("cache-control", "public, max-age=30")
+      .send(svg);
+  });
+
+  // FEATURE 4 — Partner map: the adjacent players RADAR orchestrates, with an
+  // honest per-partner status ("live" only where a self-test genuinely passes).
+  app.get("/v1/partners", async () => ({
+    generated_at: ctx.clock.now(),
+    partners: PARTNERS,
+  }));
+
+  // FEATURE 5 — Live regulatory deadline clock over the cited effective dates
+  // already in @scenelock/rulepack; `days_remaining` computed from real now.
+  app.get("/v1/compliance/deadlines", async () => computeDeadlines(ctx.clock.now()));
+
+  // FEATURE 6 — Findings-grounded assistant. Read-only, zero tools, rate-limited
+  // exactly like /v1/quickscan (same shared preHandler). Grounding is fetched
+  // server-side FIRST; finding text is DATA, never instructions (spec G-13).
+  app.post<{ Body: { production_id?: unknown; question?: unknown } }>(
+    "/v1/assistant/ask",
+    { preHandler: rateLimit },
+    async (req, reply) => {
+      const pid = req.body?.production_id;
+      const question = req.body?.question;
+      if (typeof pid !== "string" || !pid.trim())
+        return reply.code(422).send({ error: "production_id is required" });
+      if (typeof question !== "string" || !question.trim())
+        return reply.code(422).send({ error: "question is required" });
+      if (question.length > 2000)
+        return reply.code(413).send({ error: "question exceeds the 2000 character limit" });
+
+      const grounding = await svc.assistantGrounding(pid);
+      if (!grounding) {
+        return {
+          grounded: false,
+          model: null,
+          answer:
+            `No RADAR data was found for "${pid}". I can only answer from a registered ` +
+            `production's findings, and none resolved for that id.`,
+        };
+      }
+
+      await annotate(`Assistant asked: ${question.slice(0, 80)}`, ["assistant", grounding.scene_id]);
+
+      try {
+        const out = await askAssistant({ grounding, question });
+        return { ...out, grounding };
+      } catch (err) {
+        return reply.code(502).send({ error: `assistant model call failed: ${(err as Error).message}`, grounding });
+      }
+    },
+  );
 
   app.get<{ Params: { pid: string } }>("/v1/productions/:pid/compliance-profile", async (req, reply) => {
     const p = await svc.getComplianceProfile(req.params.pid);

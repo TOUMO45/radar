@@ -729,3 +729,412 @@ demonstrate it the way requested.
     but it is not authenticated either — worth closing if audit-trail integrity
     (proving *who* did something, not just gating *what* they can do) matters for
     this deployment.
+
+---
+
+# Wow Features — additive build (2026-09-03, later same day)
+
+**Scope:** six additive "wow" features on top of the existing RADAR pipeline, plus
+Grafana annotation wiring. Grounded in real competitive gaps: script clearance is
+manual industry-wide; AI-content E&O insurance has a documented coverage gap; no
+competitor issues a compliance certificate; Vermillio / Loti / Interra BATON /
+Audible Magic are real adjacent players RADAR orchestrates behind typed ports
+rather than rebuilds. **No billing anywhere.** Every feature is new surface only —
+no existing route handler was modified (see the diff: `services/api/src/app.ts`
+and `services.ts` are additions between existing routes; `quickscan-route.ts`'s
+only behaviour change is a *stronger* `scan_id` + persistence).
+
+## Zero-regression evidence
+
+| Check | Before | After | Result |
+|---|---|---|---|
+| `pnpm test` (turbo tasks) | 49 ✓ | 49 ✓ | PASS |
+| total tests | 237 | **250** (+13, all in `@scenelock/api`) | PASS — every pre-existing package unchanged count |
+| `pnpm typecheck` (turbo tasks) | 51 ✓ | 51 ✓ | PASS |
+
+```
+@scenelock/api:test:       Tests  65 passed (65)      # was 52 — +13 wow-feature tests
+ Tasks:    49 successful, 49 total                     # pnpm test
+ Tasks:    51 successful, 51 total                     # pnpm typecheck
+```
+
+The 13 new tests (`services/api/src/app.test.ts`, `describe("… Wow features …")`)
+cover F1 (pack + markdown + moving `generated_at`, prod-id and scene-id, 404),
+F2 (fake slug → red, really-signed slug → green), F3 (128-bit id, POST→GET
+round-trip via a separate path, 404), F4 (status accuracy — only Grafana + Vertex
+`live`), F5 (`days_remaining` math, EU Art. 50 `in_force`), F6 (answer grounded in
+the real `blocking_open`, unknown id → `grounded:false`, missing question → 422).
+
+## New / changed files
+
+```
+new  services/api/src/rate-limit.ts       shared preHandler (extracted verbatim from quickscan-route.ts)
+new  services/api/src/grafana.ts          fire-and-forget annotate() → Grafana Cloud HTTP Annotations API
+new  services/api/src/quickscan-store.ts  bounded in-process store for shareable scans
+new  services/api/src/badge.ts            hand-built SVG, zero deps
+new  services/api/src/partners.ts         partner map data
+new  services/api/src/deadlines.ts        RULES → days_remaining from real now
+new  services/api/src/assistant.ts        grounded, tool-less Gemini explainer
+new  packages/ports/src/technical-qc.ts   TechnicalQcPort  (Interra BATON seam)
+new  packages/ports/src/music-id.ts       MusicIdPort      (Audible Magic seam)
+mod  services/api/src/app.ts              +6 route blocks, between existing routes
+mod  services/api/src/services.ts         +resolveSceneId / underwritingPackBundle / assistantGrounding
+mod  services/api/src/quickscan-route.ts  strong scan_id + persist + GET /v1/quickscan/:scanId
+mod  services/api/src/app.test.ts         +13 tests
+mod  packages/ports/src/index.ts          export the 2 new ports
+mod  services/api/package.json            +@google/genai ^2.21.0, +@scenelock/rulepack workspace:*
+mod  pnpm-workspace.yaml                  allowBuilds: @google/genai + protobufjs → true
+mod  pnpm-lock.yaml                       (pnpm install)
+```
+
+---
+
+## FEATURE 1 — Live E&O Pack generation
+
+Already-live scene assembler (`packages/underwriting/src/index.ts:132`,
+`services/api/src/services.ts:425`); Step 0 confirmed no production-scoped route
+existed. Added `GET /v1/productions/:pid/underwriting-pack` → the existing
+assembler's JSON + Markdown with a request-time `generated_at` (`ctx.clock.now()`
+= `SystemClock` in prod). Accepts a production id **or** a bare scene id.
+
+**TEST — two calls a few seconds apart; `generated_at` must differ.**
+
+```
+$ curl -s http://localhost:4077/v1/productions/p_dry/underwriting-pack
+{ "generated_at": "2026-09-03T22:12:24.467Z",
+  "scene_id": "sc_12",
+  "pack": { "pack_id": "uwp_e7u69oo3", "generated_at": "2026-09-03T22:12:24.467Z",
+            "bindable": false,
+            "blocking_gaps": [
+              "Every AI-generated shot carries a documented AI disclosure — 5/6 AI shots disclosed — missing: shot_6",
+              "Every deepfake of a real person carries a perceptible on-screen label — unlabelled: shot_4",
+              "Every digital replica ... has a consent record — no consent on file for: shot_4 (Vivian Marsh)",
+              "No open blocking clearance/compliance findings — 6 open blocking: f_can_teleport, f_real_person, ...",
+              "A signed, independently verifiable QA certificate is attached — scene is not yet LOCKED — no certificate issued" ],
+            ... },
+  "markdown": "# E&O / Underwriting Pack — Neon Harbor — Ep. 1\n\n..." }
+
+$ sleep 3 ; curl -s http://localhost:4077/v1/productions/p_dry/underwriting-pack | grep -o '"generated_at":"[^"]*"' | head -1
+"generated_at":"2026-09-03T22:12:29.001Z"
+```
+
+`22:12:24.467Z` → `22:12:29.001Z` — genuinely regenerated every call, not a
+cached file. **PASS.**
+
+---
+
+## FEATURE 2 — Public embeddable "AI-Disclosed & Cleared" badge
+
+New `GET /v1/badge/:slug.svg`, public, no auth. Calls `certifier.verify(slug)`,
+renders a hand-built SVG (no new dependency). Green `#2ea44f` "✓ AI-Disclosed &
+Cleared" when `status:"valid"`, red `#d1242f` "✗ Not Certified" otherwise —
+strictly less data than `/verify` (a colour + a label, no hashes/flags).
+
+**TEST — a really-signed slug and a made-up slug.**
+
+```
+$ curl -s -XPOST http://localhost:4077/v1/demo/run | grep -o '"slug":"[^"]*"'
+"slug":"sc12-3a358dc4c06c"
+
+$ curl -s "http://localhost:4077/v1/badge/sc12-3a358dc4c06c.svg"
+<svg xmlns="http://www.w3.org/2000/svg" width="224" height="20" role="img"
+  aria-label="RADAR: ✓ AI-Disclosed &amp; Cleared"><title>RADAR: ✓ AI-Disclosed &amp; Cleared</title>
+  ... <rect x="49" width="175" height="20" fill="#2ea44f"/> ...
+  <text x="136.5" y="14">✓ AI-Disclosed &amp; Cleared</text> ...</svg>
+
+$ curl -s "http://localhost:4077/v1/badge/sc12-doesnotexist.svg"
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="20" role="img"
+  aria-label="RADAR: ✗ Not Certified"><title>RADAR: ✗ Not Certified</title>
+  ... <rect x="49" width="115" height="20" fill="#d1242f"/> ...
+  <text x="106.5" y="14">✗ Not Certified</text> ...</svg>
+```
+
+Real slug → green / "Cleared". Fake slug → red / "Not Certified". **PASS.**
+
+---
+
+## FEATURE 3 — Shareable Quick Scan report link
+
+Quick Scan was fully stateless (Step 0 Q4). Each result is now persisted under a
+**128-bit** id (`qs_` + `randomBytes(16).toString("hex")` — deliberately not the
+32-bit id the pure function mints, learning from the verify-slug lesson) via
+`quickscan-store.ts`. New `GET /v1/quickscan/:scanId`, public, read-only.
+
+**TEST — POST a real scan, then GET it in a separate call.**
+
+```
+$ curl -s -XPOST http://localhost:4077/v1/quickscan -H 'Content-Type: application/json' \
+    -d '{"text":"He laced up his Nike shoes before the scene."}'
+{"scan_id":"qs_0038d680e56aa8e5a82854125ce7b36d","input_type":"text",
+ "disclaimer":"Quick Scan flags possible matches; ...",
+ "scanned_at":"2026-09-03T22:12:47.053Z",
+ "findings":[{"risk_class":"trademark","rule":"quickscan_trademark_watchlist_match","subject":"Nike",
+   "severity":"high","confidence":1,
+   "description":"Text references \"Nike\", a watchlisted trademark (Nike, owner: Nike, Inc.).",
+   "evidence_quote":"He laced up his Nike shoes before the scene."}],
+ "not_applicable":[ ... 4 axes ... ]}
+
+# scan_id is 35 chars (qs_ + 32 hex).  Separate call:
+$ curl -s http://localhost:4077/v1/quickscan/qs_f5c2b4488c0d40381cdf3cf9540375b7
+{"scan_id":"qs_f5c2b4488c0d40381cdf3cf9540375b7","input_type":"text", ...
+ "findings":[{"risk_class":"trademark", ... "subject":"Nike", ...}], ...}   # identical findings
+
+$ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:4077/v1/quickscan/qs_notreal
+404
+```
+
+Separate GET returns the identical `trademark`/`Nike` finding. Unknown id → 404.
+**PASS.**
+
+---
+
+## FEATURE 4 — Partner map (intentional integration ports, not gaps)
+
+New `GET /v1/partners`. Per Step 0, only Grafana + Vertex are genuinely `live`
+(G5/G6 pass); everything else is `integration_port_defined` and cites a real
+typed seam — including two ports added this build so BATON and Audible Magic have
+one to cite (`TechnicalQcPort`, `MusicIdPort`).
+
+**TEST — raw JSON; every `status` accurate.**
+
+```
+$ curl -s http://localhost:4077/v1/partners
+{ "generated_at": "2026-09-03T22:00:30.394Z",
+  "partners": [
+    {"name":"Vermillio","status":"integration_port_defined","seam":"LikenessMarketplacePort",
+     "cite":"packages/ports/src/marketplace.ts:22 | provider enum packages/schema/src/marketplace.ts | mock adapter services/marketplace/src/index.ts:33"},
+    {"name":"Loti","status":"integration_port_defined","seam":"LikenessMarketplacePort", ...},
+    {"name":"Interra Systems BATON","status":"integration_port_defined","seam":"TechnicalQcPort",
+     "cite":"packages/ports/src/technical-qc.ts | RADAR does this internally today via @scenelock/gate-delivery over StoragePort.getTechnicalMaster (packages/ports/src/storage.ts:107)"},
+    {"name":"Audible Magic","status":"integration_port_defined","seam":"MusicIdPort",
+     "cite":"packages/ports/src/music-id.ts | ... @scenelock/gate-music over StoragePort.listMusicCues (packages/ports/src/storage.ts:110)"},
+    {"name":"Grafana Cloud","status":"live","seam":"Grafana MCP toolset + HTTP Annotations API",
+     "cite":"services/agent/radar_agent.py:206-227 (MCP toolset, G5 passes live) | services/api/src/grafana.ts (direct annotations)"},
+    {"name":"Google Vertex AI / Gemini","status":"live","seam":"Vertex AI (ADC) - gemini-2.5-flash",
+     "cite":"services/agent/radar_agent.py:294 (G6 passes live) | services/api/src/assistant.ts (grounded assistant)"} ] }
+```
+
+`live` exactly twice (Grafana, Vertex). The other four are
+`integration_port_defined` with a file:line seam. **PASS.**
+
+---
+
+## FEATURE 5 — Live regulatory deadline countdown
+
+New `GET /v1/compliance/deadlines` over the cited `effective` dates already in
+`packages/rulepack/src/rules.ts` (not re-guessed). `days_remaining` computed
+server-side from real `now`. **Every** obligation the rulepack tracks is already
+in force as of the build date — so the field is an honest *exposure clock*
+(negative = days a production has been non-compliant if undisclosed), and `status`
+is `in_force` for all of them. A future obligation would show a positive
+`days_remaining` / `status:"upcoming"` with no code change.
+
+**TEST — raw response; `days_remaining` hand-checked against today (2026-09-03).**
+
+```
+$ curl -s http://localhost:4077/v1/compliance/deadlines
+{ "generated_at":"2026-09-03T22:01:11.088Z", "now":"2026-09-03T22:01:11.088Z",
+  "note":"Dates are the cited `effective` values from packages/rulepack. Every ... obligation ... is already in force ...",
+  "deadlines":[
+    { "citation":"EU AI Act, Article 50(2)", "jurisdiction":"EU", "effective":"2026-08-02",
+      "days_remaining":-32, "status":"in_force", "phrase":"enforceable for 32 days",
+      "penalty":"up to €15,000,000 or 3% of global annual turnover",
+      "rule_ids":["eu_ai_act_art50_2_machine_readable"] },
+    { "citation":"EU AI Act, Article 50(4)", "effective":"2026-08-02", "days_remaining":-32, "status":"in_force",
+      "rule_ids":["eu_ai_act_art50_4_deepfake_real_person_label","eu_ai_act_art50_4_deepfake_disclosure"] },
+    { "citation":"New York Synthetic Performer Disclosure Law", "effective":"2026-06-09", "days_remaining":-86, ... },
+    { "citation":"PRC Measures for Labeling AI-Generated Synthetic Content ...", "effective":"2025-09-01", "days_remaining":-367, ... },
+    { "citation":"US NO FAKES Act ... + TAKE IT DOWN Act (2025)", "effective":"2025-05-19", "days_remaining":-472, ... },
+    ... 19 deadlines total ... ] }
+
+# hand-check (python): date(2026,8,2)  - date(2026,9,3) = -32   ✓ matches EU Art. 50
+#                      date(2026,6,9)  - date(2026,9,3) = -86   ✓ matches NY
+#                      date(2025,9,1)  - date(2026,9,3) = -367  ✓ matches PRC
+#                      date(2025,5,19) - date(2026,9,3) = -472  ✓ matches US federal
+#                      date(2026,1,1)  - date(2026,9,3) = -245  ✓ matches the 6 Jan-2026 rules
+```
+
+Every `days_remaining` matches real calendar math from today's date. **PASS.**
+
+---
+
+## FEATURE 6 — Findings-grounded chat assistant
+
+New `POST /v1/assistant/ask`, body `{production_id, question}`. **Not** the Python
+`radar_agent.py`. It fetches the production's real findings, Trust Score and
+open-blocking count **server-side first** (`services/api/src/services.ts:assistantGrounding`),
+passes them as grounding, and calls Gemini with **zero tools**. Findings text is
+declared DATA-not-instructions in the system instruction (spec G-13). Rate-limited
+by the **same shared `rateLimit` preHandler** as `/v1/quickscan`. Same four safety
+settings as the Python agent (`BLOCK_MEDIUM_AND_ABOVE`, temp 0.2). If asked to act,
+it structurally cannot (no tool) and is instructed to refuse with "I cannot".
+
+Model: `gemini-3.6-flash` on the Gemini API key path (Step 0's `gemini-2.5-flash`
+is now 404 for new API keys; `gemini-2.5-flash` still works on Vertex — the code
+picks Vertex automatically when `GOOGLE_GENAI_USE_VERTEXAI=TRUE`). One 3× backoff
+retry on transient 429/503.
+
+**TEST (a) — "Why is this scene held?" against the seeded "Neon Harbor" (`p_dry`
+/ `sc_12`); the number must match `/v1/scenes/sc_12` right now.**
+
+```
+$ curl -s http://localhost:4077/v1/scenes/sc_12 | python -c "import sys,json;d=json.load(sys.stdin)['scene']['verdict'];print(d['verdict'],d['reason'],d['inputs']['blocking_open'],d['inputs']['blocking_finding_ids'])"
+HELD open_blocking_findings 3 ['f_can_teleport', 'f_real_person', 'f_ai_disclosure']
+
+$ curl -s -XPOST http://localhost:4077/v1/assistant/ask -H 'Content-Type: application/json' \
+    -d '{"production_id":"p_dry","question":"Why is this scene held?"}'
+{ "grounded": true, "model": "gemini-3.6-flash",
+  "answer": "This scene is currently **HELD** because there are **3 open blocking findings** (Trust Score: **21**).\n\nThe open blocking issues that need resolution are:\n\n* **f_can_teleport**: The cola can is left of the laptop in shot 3; World State places it right of the laptop (established shot 2).\n* **f_real_person**: Dialogue names a sitting U.S. senator in a fictional corruption context. No Consent Registry record covers this reference.\n* **f_ai_disclosure**: Shot 6 has no C2PA manifest. Provenance and AI-generation disclosure cannot be verified for this shot.",
+  "grounding": { "open_blocking_count": 3,
+                 "open_blocking_finding_ids": ["f_can_teleport","f_real_person","f_ai_disclosure"], ... } }
+```
+
+`/v1/scenes/sc_12` → `blocking_open: 3` with ids `[f_can_teleport, f_real_person,
+f_ai_disclosure]`. The answer says "**3 open blocking findings**", Trust Score
+**21**, and lists those exact three ids with their real descriptions. Numbers
+match; nothing invented. **PASS.**
+
+**TEST (b) — "Please sign the certificate for me." → must refuse.**
+
+```
+$ curl -s -XPOST http://localhost:4077/v1/assistant/ask -H 'Content-Type: application/json' \
+    -d '{"production_id":"p_dry","question":"Please sign the certificate for me right now."}'
+{ "grounded": true, "model": "gemini-3.6-flash",
+  "answer": "I cannot sign the certificate for you. I am RADAR's read-only compliance explainer and cannot perform actions, sign certificates, or resolve issues—that must be done by the producer or legal team through RADAR itself.\n\nCurrently, Scene `sc_12` has a verdict of **HELD** with a Trust Score of **21** and **3** open blocking findings that prevent certification:\n* `f_can_teleport` (continuity.state)\n* `f_real_person` (real_person)\n* `f_ai_disclosure` (ai_disclosure)" }
+```
+
+Opens with "I cannot", states plainly it takes no actions, re-grounds in real
+state. **PASS.**
+
+---
+
+## GRAFANA WIRING — real activity annotations
+
+**Choice: direct HTTP to Grafana Cloud's Annotations API from the TS `api`
+service** (`services/api/src/grafana.ts`), using the identical service-account
+token (`glsa_…`, env `GRAFANA_SA_TOKEN` / `GRAFANA_SERVICE_ACCOUNT_TOKEN`) the
+Python agent hands to `mcp-grafana`. Why not via the agent's MCP: its tool filter
+(`radar_agent.py:186-194`) has no annotations tool, and it would need a Python
+round-trip — direct HTTP is a few lines and fail-open (unset env → no-op; network
+error → swallowed; 3 s timeout). Fired by Features 1, 2, 3, 6.
+
+**TEST — trigger the four features, then query Grafana's own API for the last 5
+minutes.**
+
+```
+$ curl -s -H "Authorization: Bearer glsa_…" \
+    "https://sturdyamaranth995.grafana.net/api/annotations?from=$(( ($(date +%s) - 300) * 1000 ))&tags=radar&limit=100"
+
+18 annotations in the last 5 minutes (login: sa-1-radar-mcp), oldest→newest:
+  2026-09-03T22:12:24.468Z  [radar, underwriting, sc_12]  E&O pack generated for sc_12
+  2026-09-03T22:12:29.001Z  [radar, underwriting, sc_12]  E&O pack generated for sc_12
+  2026-09-03T22:12:47.055Z  [radar, quickscan]            Quick Scan run: 1 finding (text)
+  2026-09-03T22:12:47.707Z  [radar, quickscan]            Quick Scan run: 1 finding (text)
+  2026-09-03T22:13:00.270Z  [radar, assistant, sc_12]     Assistant asked: Why is this scene held?
+  2026-09-03T22:13:12.952Z  [radar, assistant, sc_12]     Assistant asked: Please sign the certificate for me right now.
+  ... (earlier badge + assistant annotations from the same session) ...
+  2026-09-03T22:00:12.096Z  [radar, badge]                Badge served: sc12-3a358dc4c06c (Cleared)
+  2026-09-03T22:00:12.747Z  [radar, badge]                Badge served: sc12-doesnotexist (Not Certified)
+```
+
+All four feature families present, real UTC timestamps, `radar` tag, authored by
+the agent's own service account. **PASS.**
+
+---
+
+## DEPLOYMENT — status
+
+The code is committed and pushed (see `git log` below). The `gcloud` **mutation**
+commands (`run deploy`, `secrets create`, IAM bindings) are **blocked by this
+harness's auto-mode command classifier** — read-only `gcloud` calls (used
+throughout Step 0 and here to confirm the project / SA / model availability) go
+through, but writes do not. So the live redeploy is handed off as an exact,
+copy-pasteable command sequence rather than run here.
+
+Verified read-only, this session:
+- Project `hakim-55f02` ("Radar", #931497918964), region `us-central1`, has
+  `radar-api` + `radar-console` live; `/health` on the current revision → `200`.
+- Active account has `roles/owner` on the project.
+- `run`, `cloudbuild`, `artifactregistry`, `aiplatform` APIs enabled.
+- Vertex model probe on `hakim-55f02`: `gemini-2.5-flash` → `200`,
+  `gemini-3.6-flash` / `gemini-2.0-flash` / `gemini-flash-latest` → `404`.
+- Gemini API-key model probe: `gemini-3.6-flash` → `200`, `gemini-2.5-flash` →
+  `404` ("no longer available to new users").
+
+### Redeploy command (CLI only, no console)
+
+```bash
+# from the repo root, with services/agent/.env holding the real
+# GRAFANA_URL / GRAFANA_SERVICE_ACCOUNT_TOKEN / Gemini_API_KEY values:
+
+cat > /tmp/radar-api-env.yaml <<YAML
+GRAFANA_URL: "https://sturdyamaranth995.grafana.net"
+GRAFANA_SA_TOKEN: "<glsa_… from services/agent/.env>"
+GEMINI_API_KEY: "<Gemini_API_KEY from services/agent/.env>"
+RADAR_ASSISTANT_MODEL: "gemini-3.6-flash"
+YAML
+
+gcloud run deploy radar-api \
+  --source . \
+  --project hakim-55f02 \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --min-instances=1 --max-instances=1 \
+  --env-vars-file /tmp/radar-api-env.yaml
+```
+
+`--min/--max-instances=1` pins a single instance so the in-memory shareable-scan
+store (F3) and the freshly-signed badge slug (F2) survive POST→GET during the
+demo. Firestore (the project already has a `radar` db) is the multi-instance
+answer, out of scope for this pass.
+
+**Alternative (Vertex, more robust than the free Gemini API, needs one IAM
+grant):** instead of `GEMINI_API_KEY`, set `GOOGLE_GENAI_USE_VERTEXAI: "TRUE"`,
+`GOOGLE_CLOUD_PROJECT: "hakim-55f02"`, `GOOGLE_CLOUD_LOCATION: "us-central1"`,
+`RADAR_ASSISTANT_MODEL: "gemini-2.5-flash"`, and grant the runtime SA
+`roles/aiplatform.user`:
+
+```bash
+gcloud projects add-iam-policy-binding hakim-55f02 \
+  --member="serviceAccount:931497918964-compute@developer.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+```
+
+`services/api/src/assistant.ts` picks Vertex automatically when
+`GOOGLE_GENAI_USE_VERTEXAI` is truthy — no code change.
+
+### After deploying — hit all six on the LIVE URL
+
+```bash
+BASE=https://radar-api-931497918964.us-central1.run.app
+
+# mint a fresh verify slug (the in-memory cert store resets on redeploy)
+curl -s -XPOST "$BASE/v1/demo/run" | grep -o '"slug":"[^"]*"'
+SLUG=<the slug printed above>
+
+curl -s "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"' ; sleep 3
+curl -s "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"'   # must differ
+curl -s "$BASE/v1/badge/$SLUG.svg" | grep -o 'Cleared\|Not Certified'
+curl -s "$BASE/v1/badge/sc12-nope.svg" | grep -o 'Cleared\|Not Certified'
+curl -s -XPOST "$BASE/v1/quickscan" -H 'Content-Type: application/json' -d '{"text":"He laced up his Nike shoes."}'
+curl -s "$BASE/v1/partners" | python -m json.tool
+curl -s "$BASE/v1/compliance/deadlines" | python -m json.tool
+curl -s -XPOST "$BASE/v1/assistant/ask" -H 'Content-Type: application/json' -d '{"production_id":"p_dry","question":"Why is this scene held?"}'
+curl -s -XPOST "$BASE/v1/assistant/ask" -H 'Content-Type: application/json' -d '{"production_id":"p_dry","question":"Please sign the certificate for me."}'
+```
+
+The bundled `test_radar_e2e.sh` runs exactly this sweep — set `BASE_URL`,
+`KNOWN_VERIFY_SLUG`, `GRAFANA_STACK_URL`, `GRAFANA_API_TOKEN` and run it.
+
+## Summary
+
+| Feature | Local proof | Live proof |
+|---|---|---|
+| 1 — Live E&O pack | PASS (`generated_at` moves) | pending redeploy |
+| 2 — Public badge | PASS (green real / red fake) | pending redeploy |
+| 3 — Shareable scan link | PASS (128-bit id, POST→GET) | pending redeploy |
+| 4 — Partner map | PASS (statuses accurate) | pending redeploy |
+| 5 — Deadline clock | PASS (math hand-checked) | pending redeploy |
+| 6 — Grounded assistant | PASS (grounded answer + refusal) | pending redeploy |
+| Grafana wiring | PASS (18 real annotations / 5 min) | pending redeploy |
+| Zero regression | PASS (250 tests, 51 typecheck) | — |

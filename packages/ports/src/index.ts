@@ -8,3 +8,5 @@ export * from "./events.js";
 export * from "./storage.js";
 export * from "./provenance.js";
 export * from "./marketplace.js";
+export * from "./technical-qc.js";
+export * from "./music-id.js";

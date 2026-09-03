@@ -5,6 +5,7 @@ import { Archivist } from "@scenelock/archivist";
 import { buildApp } from "./app.js";
 import { buildContext } from "./context.js";
 import { DEV_ROLE_TOKENS } from "./auth.js";
+import { __resetRateLimit } from "./rate-limit.js";
 
 /**
  * Elevated roles are now proven with a bearer token (VULN-1 fix, 2026-09-03) —
@@ -34,6 +35,7 @@ beforeEach(async () => {
   });
   app = buildApp(ctx);
   await app.ready();
+  __resetRateLimit();
 });
 afterEach(async () => {
   await app.close();
@@ -659,5 +661,142 @@ describe("@scenelock/api — VULN-1 regression: a raw x-scenelock-role header gr
   it("but a real bearer token for that role IS honored (the legitimate path still works)", async () => {
     const r = await app.inject({ method: "GET", url: "/v1/admin/audit", headers: asRole("sre_admin") });
     expect(r.statusCode).toBe(200);
+  });
+});
+
+describe("@scenelock/api — Wow features (additive, no existing route changed)", () => {
+  // FEATURE 1 — Live E&O pack, production-scoped
+  it("F1: GET /v1/productions/:pid/underwriting-pack returns pack + markdown + request-time generated_at", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack" });
+    expect(r.statusCode).toBe(200);
+    const b = r.json();
+    expect(b.pack.schema_version).toBe("1.0");
+    expect(typeof b.markdown).toBe("string");
+    expect(b.markdown).toContain("# E&O / Underwriting Pack");
+    expect(b.generated_at).toBe(b.pack.generated_at);
+  });
+
+  it("F1: also accepts a bare scene id in the :pid slot (demo/e2e harness passes one)", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/productions/sc_12/underwriting-pack" });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().scene_id).toBe("sc_12");
+  });
+
+  it("F1: unknown id → 404", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/productions/nope/underwriting-pack" });
+    expect(r.statusCode).toBe(404);
+  });
+
+  it("F1: generated_at genuinely moves between two calls on a real clock (not cached)", async () => {
+    const live = buildApp();
+    await live.ready();
+    try {
+      const t1 = (await live.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack" })).json().generated_at;
+      await new Promise((res) => setTimeout(res, 20));
+      const t2 = (await live.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack" })).json().generated_at;
+      expect(t1).not.toBe(t2);
+    } finally {
+      await live.close();
+    }
+  });
+
+  // FEATURE 2 — public badge
+  it("F2: badge for a made-up slug is red / Not Certified", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/badge/sc12-doesnotexist.svg" });
+    expect(r.statusCode).toBe(200);
+    expect(r.headers["content-type"]).toContain("image/svg+xml");
+    expect(r.body).toContain("Not Certified");
+    expect(r.body).not.toContain("Cleared");
+    expect(r.body.startsWith("<svg")).toBe(true);
+  });
+
+  it("F2: badge for a really-signed slug is green / Cleared", async () => {
+    await app.inject({ method: "POST", url: "/v1/demo/run" });
+    const cert = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12/certificate" })).json();
+    const slug = cert.certificate.slug as string;
+    const r = await app.inject({ method: "GET", url: `/v1/badge/${slug}.svg` });
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain("AI-Disclosed &amp; Cleared");
+  });
+
+  // FEATURE 3 — shareable Quick Scan link
+  it("F3: POST /v1/quickscan mints a strong scan_id and persists the result", async () => {
+    const post = await app.inject({
+      method: "POST",
+      url: "/v1/quickscan",
+      payload: { text: "He laced up his Nike shoes before the scene." },
+    });
+    expect(post.statusCode).toBe(200);
+    const scanId = post.json().scan_id as string;
+    expect(scanId).toMatch(/^qs_[0-9a-f]{32}$/); // 128 bits, not the 32-bit pure-fn id
+    expect(scanId.length).toBeGreaterThanOrEqual(20);
+
+    const get = await app.inject({ method: "GET", url: `/v1/quickscan/${scanId}` });
+    expect(get.statusCode).toBe(200);
+    expect(get.json()).toEqual(post.json()); // identical, via a separate read path
+    expect(get.json().findings.some((f: { risk_class: string }) => f.risk_class === "trademark")).toBe(true);
+  });
+
+  it("F3: GET /v1/quickscan/:scanId for an unknown id → 404", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/quickscan/qs_deadbeef" });
+    expect(r.statusCode).toBe(404);
+  });
+
+  // FEATURE 4 — partner map
+  it("F4: GET /v1/partners — statuses are accurate (only Grafana + Vertex are live)", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/partners" });
+    expect(r.statusCode).toBe(200);
+    const by = Object.fromEntries(r.json().partners.map((p: { name: string; status: string }) => [p.name, p.status]));
+    expect(by["Grafana Cloud"]).toBe("live");
+    expect(by["Google Vertex AI / Gemini"]).toBe("live");
+    for (const n of ["Vermillio", "Loti", "Interra Systems BATON", "Audible Magic"])
+      expect(by[n]).toBe("integration_port_defined");
+  });
+
+  // FEATURE 5 — regulatory deadline clock
+  it("F5: GET /v1/compliance/deadlines — days_remaining computed from the clock; EU Art. 50 is in force", async () => {
+    const r = await app.inject({ method: "GET", url: "/v1/compliance/deadlines" });
+    expect(r.statusCode).toBe(200);
+    const b = r.json();
+    expect(Array.isArray(b.deadlines)).toBe(true);
+    expect(b.deadlines.length).toBeGreaterThan(0);
+    const eu = b.deadlines.find((d: { citation: string }) => d.citation.includes("Article 50(2)"));
+    expect(eu.effective).toBe("2026-08-02");
+    // clock is FixedClock 2026-08-29 → 2026-08-02 is 27 days in the past
+    expect(eu.days_remaining).toBe(-27);
+    expect(eu.status).toBe("in_force");
+  });
+
+  // FEATURE 6 — findings-grounded assistant (no Gemini creds in the test env →
+  // the grounded-fallback path; the real model answer is proven by the live curl).
+  it("F6: answer is grounded in the REAL open-blocking count (3 for the seed)", async () => {
+    const scene = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12" })).json();
+    const realOpen = scene.scene.verdict.inputs.blocking_open;
+    expect(realOpen).toBe(3);
+    const r = await app.inject({
+      method: "POST",
+      url: "/v1/assistant/ask",
+      payload: { production_id: "p_dry", question: "Why is this scene held?" },
+    });
+    expect(r.statusCode).toBe(200);
+    const b = r.json();
+    expect(b.grounded).toBe(true);
+    expect(b.grounding.open_blocking_count).toBe(realOpen);
+    expect(b.answer).toContain(String(realOpen));
+  });
+
+  it("F6: unknown production id → grounded:false, says so plainly, no model call", async () => {
+    const r = await app.inject({
+      method: "POST",
+      url: "/v1/assistant/ask",
+      payload: { production_id: "not_a_real_id", question: "status?" },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().grounded).toBe(false);
+  });
+
+  it("F6: missing question → 422", async () => {
+    const r = await app.inject({ method: "POST", url: "/v1/assistant/ask", payload: { production_id: "p_dry" } });
+    expect(r.statusCode).toBe(422);
   });
 });

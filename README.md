@@ -17,7 +17,7 @@ Design spec: `scenelock-v2-full-stack-design.md` (Parts A–H + appendices).
 
 ---
 
-## Status — all 8 phases (P0–P7) + 2026 compliance vertical + roadmap R1–R8 ✅  ·  **219 tests green across 25 packages, 47/47 turbo tasks**
+## Status — all 8 phases (P0–P7) + 2026 compliance vertical + roadmap R1–R8 + Quick Scan + 6 additive "wow" routes ✅  ·  **250 tests green across 25 packages, 49/49 turbo test tasks, 51/51 typecheck**
 
 Every phase from the spec's build plan (H.1) is implemented and verified against its
 exit criterion, plus the **whole 2026 roadmap** shipped on top: the synthetic-media
@@ -211,6 +211,33 @@ status. It is not legal advice."*
 
 ---
 
+## Wow features — additive surface on top of the pipeline
+
+Six additive routes (plus Grafana annotation wiring), each grounded in a real
+competitive gap. **No billing anywhere. No existing route handler was modified** —
+every one is new surface, proven by a full diff review and the full test suite
+(250 tests / 51 typecheck tasks green, unchanged per-package counts). One
+curl-based test per feature is in `TEST_REPORT.md` → "Wow Features"; the whole
+sweep is `test_radar_e2e.sh`.
+
+| Route | What it is |
+|---|---|
+| `GET /v1/productions/:pid/underwriting-pack` | **Live E&O pack.** The existing deterministic assembler (`packages/underwriting`), production-scoped, with a request-time `generated_at` (`SystemClock`) — regenerated every call, never a cached file. Returns `{ generated_at, scene_id, pack, markdown }`. Accepts a production id or a bare scene id. |
+| `GET /v1/badge/:slug.svg` | **Public embeddable badge.** No auth, same trust model as `/verify` but exposes strictly less — a colour + a label. Green "✓ AI-Disclosed & Cleared" when the certificate verifies `valid`, red "✗ Not Certified" otherwise. Hand-built SVG, zero new dependency (`services/api/src/badge.ts`). |
+| `POST /v1/quickscan` → `GET /v1/quickscan/:scanId` | **Shareable Quick Scan link.** Each scan is now persisted under a 128-bit id (`qs_` + 16 random bytes) and re-openable read-only. `POST` response gains `scan_id`; everything else is unchanged. In-process store (`quickscan-store.ts`), bounded, single-instance for the demo. |
+| `GET /v1/partners` | **Partner map.** Vermillio · Loti · Interra BATON · Audible Magic · Grafana Cloud · Vertex/Gemini, each with a one-line role and an honest `status`: `live` **only** for Grafana + Vertex (agent goals G5/G6 pass live); `integration_port_defined` for the rest, each citing a real typed seam — `LikenessMarketplacePort`, and the new `TechnicalQcPort` / `MusicIdPort` in `packages/ports`. |
+| `GET /v1/compliance/deadlines` | **Regulatory exposure clock.** The cited `effective` dates already in `packages/rulepack` (EU AI Act Art. 50, CA AB 1836/2602, NY, PRC, US NO FAKES/TAKE IT DOWN, platform policies), with `days_remaining` computed server-side from real `now`. Every tracked obligation is already in force, so the number is negative — days a production has been non-compliant if undisclosed. |
+| `POST /v1/assistant/ask` | **Findings-grounded assistant.** `{production_id, question}`. Fetches the production's real findings, Trust Score and open-blocking count **server-side first**, passes them as grounding, calls Gemini with **zero tools** — it cannot regenerate, sign or adjudicate, and refuses if asked ("I cannot…"). Findings text is declared DATA-not-instructions (spec G-13). Rate-limited by the **same** preHandler as `/v1/quickscan`; same safety settings as the Python agent. Vertex `gemini-2.5-flash` when `GOOGLE_GENAI_USE_VERTEXAI=TRUE`, else Gemini API `gemini-3.6-flash`. |
+
+**Grafana wiring.** Features 1, 2, 3 and 6 each post a real annotation to Grafana
+Cloud's HTTP Annotations API (`services/api/src/grafana.ts`) using the identical
+service-account token the Python agent hands to `mcp-grafana` — direct HTTP, no
+MCP round-trip (the agent's tool filter has no annotations tool). Fail-open: unset
+env → no-op; error → swallowed; 3 s timeout. `E&O pack generated for sc_12`,
+`Badge served: … (Cleared)`, `Quick Scan run: 2 findings`, `Assistant asked: …`.
+
+---
+
 ## Layout
 
 ```
@@ -218,7 +245,9 @@ packages/
   schema/           # JSON-contract types (Zod). The single source of truth.
   config/           # Control Room tokens · τ defaults · cost map (D6).
   fixtures/         # DRY_RUN demo spine (+ KG corpus, consent, shot text, continuity, tokens).
-  ports/            # adapter seam: Storage/EventBus/Clock/IdGen + in-memory impls.
+  ports/            # adapter seam: Storage/EventBus/Clock/IdGen + in-memory impls; vendor seams (Likeness/Provenance/TechnicalQc/MusicId).
+  rulepack/         # 2026 synthetic-media law + platform policy as cited data (drives /v1/compliance/deadlines).
+  underwriting/     # deterministic E&O / Underwriting Pack assembler (drives /v1/productions/:pid/underwriting-pack).
 services/
   agent/            # Python ADK Fixer/SRE-Copilot — Gemini + Grafana MCP (the partner-track piece).
   verdict/          # computeVerdict() — the one home for lock logic (D5).
@@ -232,7 +261,8 @@ services/
   certifier/        # deterministic cert + hash chain + KMS sign + verify (§8, D2).
   verifier/         # public GET /verify/:slug — no auth, no PII (G-16).
   saboteur/         # evasion corpus + SceneBench scorecards (§10, Part G).
-  api/              # Fastify REST (F.1) over the ports. Mounts archivist + gates + loop + certifier.
+  api/              # Fastify REST (F.1) over the ports. Mounts archivist + gates + loop + certifier;
+                    #   + Quick Scan, and the additive "wow" routes (E&O pack · badge · scan link · partners · deadlines · assistant).
 apps/
   console/          # Next.js BFF + Control Room UI (Parts C/D).
 ```
@@ -268,6 +298,10 @@ callers.
 | agent Veo / KMS | `_call_veo` stub / fake hash | real Veo client / Cloud KMS sign — guards unchanged |
 | agent Grafana MCP | **live** — official `grafana/mcp-grafana` OSS server over stdio + a Grafana **service-account token** (`GRAFANA_SERVICE_ACCOUNT_TOKEN`), 7 tools resolved; hosted `mcp.grafana.com` OAuth is the fallback | same, deploy the OSS server alongside the agent |
 | agent Gemini | **live** — real Vertex `gemini-2.5-flash` turn via ADC (`GOOGLE_CLOUD_PROJECT` + `gcloud auth application-default login`) | Agent Engine deployment, same code |
+| API assistant Gemini (`/v1/assistant/ask`) | **live** — Vertex `gemini-2.5-flash` when `GOOGLE_GENAI_USE_VERTEXAI=TRUE`, else Gemini API `gemini-3.6-flash` (`GEMINI_API_KEY`); grounding fetched server-side, zero tools | Vertex via the runtime SA (`roles/aiplatform.user`), same code |
+| API → Grafana annotations (`services/api/src/grafana.ts`) | **live** — direct HTTP to the Cloud Annotations API with the agent's `glsa_…` service-account token; fail-open when env is unset | same token, same endpoint |
+| `TechnicalQcPort` (Interra BATON), `MusicIdPort` (Audible Magic) | typed seam only — RADAR does the QC itself via `@scenelock/gate-delivery` / `gate-music` | vendor adapter behind the port + a partner key |
+| `LikenessMarketplacePort` (Vermillio / Loti) | DRY_RUN quotes + issued consent record | partner API behind the same interface |
 
 ## Deliberate deviations from the spec text
 

@@ -4,5 +4,7 @@ packages:
   - "apps/*"
 
 allowBuilds:
+  '@google/genai': true
   esbuild: true
+  protobufjs: true
   sharp: true

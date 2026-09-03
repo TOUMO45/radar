@@ -470,6 +470,89 @@ export class Services {
   }
 
   /**
+   * Resolve a production id OR a scene id to a scene id. The E&O-pack and
+   * assistant routes are addressed by production, but the demo/e2e harness
+   * also passes a bare scene id — accept both rather than 404 on the harness.
+   */
+  async resolveSceneId(idOrSid: string): Promise<string | null> {
+    const prod = await this.ctx.storage.getProduction(idOrSid);
+    if (prod) {
+      const scenes = await this.ctx.storage.listScenes(idOrSid);
+      return scenes[0]?.scene_id ?? null;
+    }
+    const scene = await this.ctx.storage.getScene(idOrSid);
+    return scene ? scene.scene_id : null;
+  }
+
+  /**
+   * GET /v1/productions/:pid/underwriting-pack (Feature 1) — the existing
+   * assembler's JSON + Markdown for the production's scene, with a
+   * request-time `generated_at` (SystemClock in prod — genuinely regenerated
+   * every call, never a cached file).
+   */
+  async underwritingPackBundle(idOrSid: string) {
+    const sid = await this.resolveSceneId(idOrSid);
+    if (!sid) return null;
+    const pack = await this.underwritingPack(sid);
+    if (!pack) return null;
+    return {
+      generated_at: pack.generated_at,
+      scene_id: sid,
+      pack,
+      markdown: renderUnderwritingMarkdown(pack),
+    };
+  }
+
+  /**
+   * Grounding for the findings-grounded assistant (Feature 6) — the
+   * production's REAL current findings, Trust Score and open-blocking count,
+   * fetched server-side. Returns null when nothing resolves (the route then
+   * says so plainly instead of asking a model).
+   */
+  async assistantGrounding(idOrSid: string) {
+    const sid = await this.resolveSceneId(idOrSid);
+    if (!sid) return null;
+    const scene = await this.ctx.storage.getScene(sid);
+    if (!scene) return null;
+    const production = await this.ctx.storage.getProduction(scene.production_id);
+    const [verdict, trust] = await Promise.all([
+      this.sceneVerdict(sid),
+      this.sceneTrustScore(sid),
+    ]);
+    const findings = await this.listFindings(scene.production_id, { scene: sid });
+    const openish = new Set(["open", "in_remediation", "escalated"]);
+    const openBlocking = findings.filter((f) => f.blocking && openish.has(f.status));
+    return {
+      production_id: scene.production_id,
+      scene_id: sid,
+      title: production?.title ?? scene.production_id,
+      verdict: verdict?.verdict ?? "UNKNOWN",
+      verdict_reason: verdict?.reason ?? "unknown",
+      trust_score: trust?.score ?? null,
+      trust_band: trust?.band ?? null,
+      trust_headline: trust?.headline ?? null,
+      open_blocking_count: verdict?.inputs.blocking_open ?? openBlocking.length,
+      open_blocking_finding_ids:
+        verdict?.inputs.blocking_finding_ids ?? openBlocking.map((f) => f.finding_id),
+      open_blocking_findings: openBlocking.map((f) => ({
+        finding_id: f.finding_id,
+        risk_class: f.risk_class,
+        severity: f.severity,
+        gate: f.gate,
+        status: f.status,
+        description: f.description,
+      })),
+      all_findings: findings.map((f) => ({
+        finding_id: f.finding_id,
+        risk_class: f.risk_class,
+        severity: f.severity,
+        status: f.status,
+        blocking: Boolean(f.blocking),
+      })),
+    };
+  }
+
+  /**
    * Verify one shot's provenance (roadmap R2). Turns *declared* C2PA/watermark
    * into *verified*: when `assetRef` points at real bytes and the ContentAuth
    * c2patool is available, it runs the real cryptographic verification and
