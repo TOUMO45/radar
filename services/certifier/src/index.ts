@@ -126,7 +126,11 @@ export class Certifier {
     };
 
     const certificate_hash = sha256(canonicalBytes(base));
-    const slug = `${sceneId.replace(/[^a-z0-9]/gi, "")}-${certificate_hash.slice(0, 4)}`;
+    // 12 hex chars = 48 bits of entropy (was 4 = 16 bits, brute-forceable in
+    // minutes with no rate limiting on the public /verify route — audit fix,
+    // TEST_REPORT.md "slug entropy"). The hash is already computed; slicing
+    // more of it costs nothing.
+    const slug = `${sceneId.replace(/[^a-z0-9]/gi, "")}-${certificate_hash.slice(0, 12)}`;
     const { signature, key_version } = this.signer.sign(canonicalBytes(base));
 
     const payload: CertificatePayload = {

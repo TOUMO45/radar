@@ -150,6 +150,23 @@ Leave the token blank to fall back to the hosted `mcp.grafana.com` OAuth endpoin
 See [`services/agent/README.md`](services/agent/README.md) for the full contract and the
 single-source-of-truth reconciliation with the TS backend.
 
+**Where Gemini and Grafana MCP are actually imported and called** (exact `file:line`,
+verified against this repo's `services/agent/radar_agent.py`, not paraphrased):
+
+| Requirement | File : line | What's there |
+|---|---|---|
+| Gemini import | [`radar_agent.py:102`](services/agent/radar_agent.py#L102) | `from google.adk.agents import LlmAgent` |
+| Gemini model call | [`radar_agent.py:292-294`](services/agent/radar_agent.py#L292-L294) | `fixer_agent = LlmAgent(name="radar_fixer", model="gemini-2.5-flash", ...)` |
+| Vertex routing | [`services/agent/.env.example`](services/agent/.env.example) | `GOOGLE_GENAI_USE_VERTEXAI=TRUE` — the ADK/genai client resolves this at runtime, routing the call above through Vertex AI + ADC rather than a bare API key |
+| Grafana MCP import | [`radar_agent.py:104`](services/agent/radar_agent.py#L104) | `from google.adk.tools import FunctionTool, McpToolset` |
+| Grafana MCP call (headless, default) | [`radar_agent.py:206-218`](services/agent/radar_agent.py#L206-L218) | `grafana_mcp = McpToolset(connection_params=StdioConnectionParams(...))` — launches the official `grafana/mcp-grafana` OSS server as a subprocess with a service-account token |
+| Grafana MCP call (hosted fallback) | [`radar_agent.py:221-227`](services/agent/radar_agent.py#L221-L227) | `grafana_mcp = McpToolset(connection_params=StreamableHTTPConnectionParams(url="https://mcp.grafana.com/mcp", ...))` |
+| Grafana MCP wired into the agent | [`radar_agent.py:317`](services/agent/radar_agent.py#L317) | `tools=[regenerate_tool, sign_certificate_tool, grafana_mcp]` — inside the same `LlmAgent(...)` construction as the model line above |
+
+Both are exercised live, not just imported: `python radar_agent.py`'s self-test (G5, G6)
+makes a real call through each of these — raw output in
+[`TEST_REPORT.md`](TEST_REPORT.md) Step 3.
+
 ---
 
 ## Layout

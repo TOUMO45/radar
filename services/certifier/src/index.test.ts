@@ -44,11 +44,21 @@ describe("Certifier (spec §8, Appendix D)", () => {
     const cert = await certifier.certify("sc_12");
     expect(CertificatePayload.safeParse(cert.payload).success).toBe(true);
     expect(cert.payload.disclaimer).toBe("Attests what was checked and what humans decided. Not a legal opinion.");
-    expect(cert.payload.verification_slug).toMatch(/^sc12-[0-9a-f]{4}$/);
+    expect(cert.payload.verification_slug).toMatch(/^sc12-[0-9a-f]{12}$/);
     expect(cert.payload.certificate_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(cert.payload.prior_certificate_hash).toBeNull();
     expect(cert.payload.findings.some((l) => l.includes("waived"))).toBe(true);
     expect(cert.scene_id).toBe("sc_12");
+  });
+
+  it("verification_slug carries >= 48 bits of entropy (audit fix — was 16 bits, brute-forceable)", async () => {
+    await lockScene();
+    const cert = await certifier.certify("sc_12");
+    const hexPart = cert.payload.verification_slug.split("-").at(-1)!;
+    expect(hexPart).toHaveLength(12); // 12 hex chars = 48 bits, was 4 = 16 bits
+    expect(hexPart).toMatch(/^[0-9a-f]{12}$/);
+    // sanity: search space is now 16^12, not the brute-forceable 16^4 = 65,536
+    expect(Math.log2(16 ** hexPart.length)).toBeGreaterThanOrEqual(48);
   });
 
   it("marks the scene certified and emits certificate.signed", async () => {

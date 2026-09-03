@@ -1,14 +1,19 @@
 # Radar — Pre-Hackathon Audit Report
 
 **Date:** 2026-09-03
-**Scope:** self-audit of `B:\Desktop\Radar`, local instance only. Verification only —
-every claim below is backed by pasted command output. Where a claim could not be
-verified, it is marked FAIL or N/A, not glossed over.
+**Scope:** initially a local-instance-only self-audit; extended in same-day follow-up
+work to real commits, a public repo, and a live Cloud Run deployment (Steps A–G,
+appended after the original Steps 1–8). Verification only — every claim below is
+backed by pasted command output, an external fetch, or both. Where a claim could not
+be verified, it is marked FAIL or N/A, not glossed over.
 
-**One vulnerability was found during Step 1 (VULN-1). Per instruction, I stopped and
-reported it before continuing. The user authorized "Do b: fixing then complete 2-8" —
-the fix is applied and described in Step 1 and re-verified with regression tests in
-Steps 1/2/4. It is NOT yet committed to git — see Step 7.**
+**Two vulnerabilities were found (VULN-1 during Step 1; the slug-entropy issue during
+Step 1's route mapping, finalized in the Step 5 corrected analysis). Both are now
+FIXED, committed (`812b3a7` and the Step E commit), pushed to
+`https://github.com/TOUMO45/radar`, and re-verified live on the actual Cloud Run
+deployment via external fetches — not just locally. See the "SLUG ENTROPY — FIXED"
+callout in Step 5 and the Step 8 must-fix list's RESOLVED annotations for the full
+before/after evidence.**
 
 ---
 
@@ -456,6 +461,62 @@ signal — see raw evidence above). A genuine, lower-severity finding exists
 independently (16-bit slug entropy, no rate limiting) and is listed in the must-fix
 list below, correctly labeled as LOW-MEDIUM, not the CRITICAL the script implied.**
 
+### SLUG ENTROPY — FIXED (2026-09-03, same session, follow-up to this audit)
+
+**Before** (`services/certifier/src/index.ts`, as found and pasted in Step 1):
+```ts
+const slug = `${sceneId.replace(/[^a-z0-9]/gi, "")}-${certificate_hash.slice(0, 4)}`;
+// 4 hex chars = 16 bits = 65,536 possible slugs per scene id, no rate limiting
+```
+
+**After:**
+```ts
+const slug = `${sceneId.replace(/[^a-z0-9]/gi, "")}-${certificate_hash.slice(0, 12)}`;
+// 12 hex chars = 48 bits = 281,474,976,710,656 possible slugs per scene id
+```
+
+**New regression test** (`services/certifier/src/index.test.ts`):
+```ts
+it("verification_slug carries >= 48 bits of entropy (audit fix — was 16 bits, brute-forceable)", async () => {
+  await lockScene();
+  const cert = await certifier.certify("sc_12");
+  const hexPart = cert.payload.verification_slug.split("-").at(-1)!;
+  expect(hexPart).toHaveLength(12);
+  expect(hexPart).toMatch(/^[0-9a-f]{12}$/);
+  expect(Math.log2(16 ** hexPart.length)).toBeGreaterThanOrEqual(48);
+});
+```
+
+**Full suite re-run after the fix:**
+```
+ Tasks:    47 successful, 47 total
+@scenelock/certifier:test:       Tests  7 passed (7)   # was 6 — +1 new
+TOTAL TESTS: 227 across 24 test-bearing packages         # was 226 — +1
+$ pnpm typecheck
+ Tasks:    49 successful, 49 total
+```
+
+**Redeployed to Cloud Run and re-verified — externally, via WebFetch (not local curl):**
+```
+$ curl -s -XPOST .../v1/scenes/sc_12/auto-remediate -H 'Authorization: Bearer radar_dev_producer_9f2a7c1e' -d '{}'
+verdict: LOCKED
+slug: sc12-aab6298c2145        # 12 hex chars, was sc12-d020 (4 hex chars) before the fix
+hex part length: 12 -> bits: 48
+```
+WebFetch (external, not this machine) of `https://radar-api-931497918964.us-central1.run.app/verify/sc12-aab6298c2145`:
+```json
+{"slug":"sc12-aab6298c2145","status":"valid","scene":"sc_12","project":"p_dry",
+ "certificate_hash":"aab6298c2145d5f5d102055ce6f8a6e667a3b1d341d7e3a8742506cd09ca478a",
+ "chain_ok":true,"signature_ok":true,
+ "disclaimer":"Attests what was checked and what humans decided. Not a legal opinion."}
+```
+**Tag: VULN (found, lower-severity) → FIXED, re-verified live on the actual Cloud Run
+deployment via an external fetch, plus a dedicated regression test.** (Rate limiting on
+`/verify` was not added — a longer slug alone makes brute-forcing computationally
+infeasible at any practical request rate; rate limiting remains a defense-in-depth item
+if this endpoint's traffic profile ever calls for it, not fixed here since the entropy
+fix alone resolves the actual exploitability.)
+
 **TEST 4 — the VULN label is FALSE for the same class of reason.** Every response from
 `/v1/findings/:fid/regenerate` is HTTP 200 regardless of outcome (`resolved` /
 `escalated` / `paused_budget` / `no_op` — confirmed in `services/fixer/src/loop.ts`,
@@ -584,45 +645,71 @@ demonstrate it the way requested.
 
 ## STEP 8 — Must-fix list (ordered by severity)
 
-1. **[CRITICAL — fixed this session, verify before demo] VULN-1: broken access
-   control on 11 privileged REST routes + the MCP `submit_adjudication` role field.**
-   Fixed in `services/api/src/auth.ts` + 11 call sites in `app.ts` + the BFF proxy +
-   the MCP scope model. Re-verified live and by 5 new regression tests (Step 2, 4).
-   **Not yet committed to git** (see item 4) — until it is, this fix only exists in
-   the working tree.
+> **SESSION UPDATE (2026-09-03, same day, follow-up work after the initial report):**
+> items 1–7 below were the original findings as written when this report was first
+> produced. All seven have since been resolved in this same session, with real
+> evidence (commits, a live deployment, external fetches). Per this report's own rule
+> against silently rewriting findings, the original text is kept below, each with a
+> **RESOLVED** line on top stating the current, verified truth — nothing is deleted or
+> softened.
 
-2. **[HIGH — blocks submission] No hosted deployment exists at all.** Cloud Run has
-   never been enabled on the GCP project. If the hackathon requires "real runtime use
-   of Google Cloud" reachable by judges, this must be deployed before submission —
-   confirmed by direct `gcloud` query, not assumption.
+1. **RESOLVED — committed as `812b3a7`, pushed to `origin/master`.** *(original
+   finding, now historical:)* **[CRITICAL — fixed this session, verify before demo]
+   VULN-1: broken access control on 11 privileged REST routes + the MCP
+   `submit_adjudication` role field.** Fixed in `services/api/src/auth.ts` + 11 call
+   sites in `app.ts` + the BFF proxy + the MCP scope model. Re-verified live and by 5
+   new regression tests (Step 2, 4). ~~Not yet committed to git~~ — committed and
+   pushed; also re-verified live on the actual Cloud Run deployment (Step B).
 
-3. **[HIGH — blocks submission] The repo has no git remote — it is not public,
-   because it is not anywhere.** `git remote -v` returns nothing. Needs a GitHub
-   remote + push before any "public repo" claim can be made.
+2. **RESOLVED — deployed and externally verified.** *(original finding, now
+   historical:)* **[HIGH — blocks submission] No hosted deployment exists at all.**
+   Cloud Run has never been enabled on the GCP project. ~~If the hackathon requires
+   "real runtime use of Google Cloud" reachable by judges, this must be deployed
+   before submission~~ — `run.googleapis.com` enabled on `hakim-55f02`, `@scenelock/api`
+   deployed to Cloud Run, confirmed reachable via an external `WebFetch` (not a local
+   curl): `https://radar-api-931497918964.us-central1.run.app/health` → `200
+   {"status":"ok","mode":"dry_run",...}`.
 
-4. **[HIGH] The VULN-1 fix and the adapted `pentest_radar.sh` are uncommitted.**
-   `git status` shows `services/api/src/auth.ts` and `pentest_radar.sh` as untracked,
-   and six files modified. Nothing from this audit session has been committed —
-   intentionally, since committing wasn't part of what was asked. Decide and commit
-   before the deadline.
+3. **RESOLVED — public repo live at https://github.com/TOUMO45/radar.** *(original
+   finding, now historical:)* **[HIGH — blocks submission] The repo has no git
+   remote — it is not public, because it is not anywhere.** ~~`git remote -v` returns
+   nothing. Needs a GitHub remote + push before any "public repo" claim can be
+   made.~~ — remote added, pushed, confirmed via `git ls-remote` (server HEAD matches
+   local exactly) and an external fetch of the repo's GitHub page (`Visibility:
+   Public`, commit hashes match `git log` hash-for-hash).
 
-5. **[MEDIUM] No `LICENSE` file.** Required for the "OSS license visible in About"
-   checklist item; currently absent entirely.
+4. **RESOLVED — nothing outstanding; see Step F for the current full `git status`.**
+   *(original finding, now historical:)* **[HIGH] The VULN-1 fix and the adapted
+   `pentest_radar.sh` are uncommitted.** ~~`git status` shows `services/api/src/auth.ts`
+   and `pentest_radar.sh` as untracked, and six files modified.~~ — all committed
+   across `812b3a7` (the fix), `06ff5ee` (LICENSE), `171eb81` (Dockerfile), plus the
+   slug-entropy fix commit (Step E) and the README-citation commit (Step C).
 
-6. **[MEDIUM] README makes no file/line citations for the Grafana/Gemini integration
-   points**, even though the underlying claims are true and were independently
-   verified. Add explicit `file:line` pointers (e.g. `radar_agent.py:206` for
-   `McpToolset`, `radar_agent.py:294` for the Gemini model) if judges are expected to
-   verify this claim by reading the README rather than the source.
+5. **RESOLVED — `LICENSE` added (MIT), commit `06ff5ee`.** *(original finding, now
+   historical:)* **[MEDIUM] No `LICENSE` file.** ~~Required for the "OSS license
+   visible in About" checklist item; currently absent entirely.~~ — confirmed present
+   in GitHub's file tree via an external fetch of the repo page.
 
-7. **[LOW-MEDIUM] `/verify/:slug` carries only 16 bits of entropy per known scene id
-   (65,536 possible slugs) with no rate limiting anywhere on the route.** Not the
-   "100% guessable" the pentest script incorrectly reported (that was a script bug —
-   see Step 5), but a real, narrower issue: brute-forcing a specific known scene id's
-   certificate is feasible in well under an hour, unthrottled. Impact is bounded (no
-   PII in the response, no write capability from a hit), but worth either widening the
-   slug (e.g. 8+ hex chars) or adding rate limiting to `/verify` before treating "you
-   need the slug" as any kind of confidentiality boundary.
+6. **RESOLVED — explicit `file:line` table added to the README.** *(original
+   finding, now historical:)* **[MEDIUM] README makes no file/line citations for the
+   Grafana/Gemini integration points**, even though the underlying claims are true and
+   were independently verified. ~~Add explicit `file:line` pointers...~~ — added a
+   dedicated table (`radar_agent.py:102`, `:104`, `:206-218`, `:221-227`, `:292-294`,
+   `:317`), every line re-verified byte-exact against the actual file before writing
+   the citation (see Step C).
+
+7. **RESOLVED — slug widened from 4 to 12 hex chars (16 bits → 48 bits), redeployed,
+   re-verified externally.** *(original finding, now historical:)* **[LOW-MEDIUM]
+   `/verify/:slug` carries only 16 bits of entropy per known scene id (65,536 possible
+   slugs) with no rate limiting anywhere on the route.** Not the "100% guessable" the
+   pentest script incorrectly reported (that was a script bug — see Step 5), but a
+   real, narrower issue: brute-forcing a specific known scene id's certificate was
+   feasible in well under an hour, unthrottled. ~~worth either widening the slug (e.g.
+   8+ hex chars) or adding rate limiting~~ — widened to 12 hex chars (48 bits,
+   281 trillion possible slugs); full detail and raw evidence in the "SLUG ENTROPY —
+   FIXED" callout in Step 5, above. Rate limiting was intentionally not added — the
+   entropy fix alone resolves the actual exploitability; left as a defense-in-depth
+   idea only, not a remaining gap.
 
 8. **[LOW] `fetch_certificate` MCP tool is stale/non-functional** — always returns
    `certificate: null` with a hardcoded "certifier not yet online (P6)" note, even
