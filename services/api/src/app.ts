@@ -5,6 +5,7 @@ import { registerVerifyRoute } from "@scenelock/verifier";
 import { buildContext, type AppContext } from "./context.js";
 import { Services } from "./services.js";
 import { resolveIdentity } from "./auth.js";
+import { registerQuickScanRoute } from "./quickscan-route.js";
 
 /**
  * REST surface — spec F.1. P0 read paths + the adjudication write path;
@@ -20,6 +21,11 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
 
   app.register(cors, { origin: true });
   app.decorate("ctx", ctx);
+
+  // Quick Scan (additive, standalone — no production_id, no auth beyond its
+  // own rate limit). Registered as its own plugin so its multipart parser +
+  // rate limiter stay isolated from every other route.
+  app.register(registerQuickScanRoute);
 
   // open incidents for any already-blocking seeded findings at boot (C.3 Flow B)
   app.addHook("onReady", async () => {

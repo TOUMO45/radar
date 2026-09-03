@@ -169,6 +169,48 @@ makes a real call through each of these — raw output in
 
 ---
 
+## Quick Scan — a separate, best-effort preliminary check
+
+`GET /quickscan` in the console (linked from the header) and `POST /v1/quickscan` on the
+API are a **deliberately separate, additive capability** — not part of the graded
+production pipeline above, and never touching its routes, data, or behavior. Paste a
+script excerpt or upload an image/video **with no pre-registered production** and get
+back a preliminary findings list. No auth beyond a per-route rate limit (10 scans/min
+per IP) — this is intentionally a public-ish entry point.
+
+**What it does check**, over Quick Scan's own small watchlist
+(`services/quickscan/src/watchlist.ts` — deliberately separate from the demo
+production's `packages/fixtures` KG):
+- **Trademark** and **lyrics** — text/phrase matching against a short, curated list of
+  real reference entries (currently: the "Nike" wordmark; "Twinkle, Twinkle, Little
+  Star", a genuinely real, well-known song that happens to be public domain).
+- **Real-person name references** — same watchlist mechanism; currently seeded with no
+  entries (the mechanism is tested, real names aren't pre-loaded without a stronger
+  reason than a demo).
+- **AI-disclosure / C2PA** — for an uploaded asset, a **real** verification via the same
+  ContentAuth `c2patool` engine the production pipeline uses (`@scenelock/provenance`,
+  roadmap R2) — genuinely checks the file's manifest, not a canned response.
+- **Compliance-labeling** — the same cited 2026 rulepack (`@scenelock/gate-compliance`)
+  run over the verified C2PA result, assuming the asset is AI-generated (Quick Scan has
+  no way to detect that directly — stated in the finding text, not silently assumed).
+
+**What it explicitly does *not* check**, every time, with a stated reason rather than a
+silent omission:
+- **Continuity** — inherently requires a production's World State; cannot exist
+  standalone.
+- **Consent verification** — a name match only says a real person *may* be referenced;
+  whether a release is on file needs a specific production's Consent Registry, which a
+  standalone scan doesn't have.
+- Whichever of trademark/lyrics/real-person/C2PA/compliance-labeling doesn't apply to
+  the input type submitted (e.g. C2PA doesn't apply to a text-only scan).
+
+**What it is not**: no certificate, no signing, no Trust Score, no `blocking` status —
+just a findings list, explicitly labeled as a preliminary scan. Every response carries
+the same disclaimer: *"Quick Scan flags possible matches; it does not verify licensing
+status. It is not legal advice."*
+
+---
+
 ## Layout
 
 ```

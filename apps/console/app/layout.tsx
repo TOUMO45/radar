@@ -30,6 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/bench" className="mono text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
             SceneBench
           </Link>
+          <Link href="/quickscan" className="mono text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
+            Quick Scan
+          </Link>
           <div className="ml-auto flex items-center gap-3">
             <RoleSwitcher />
             <span className="mono text-[11px] text-[var(--color-status-held)] border px-2 py-[2px] rounded-[2px]">

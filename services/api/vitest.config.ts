@@ -20,6 +20,7 @@ export default defineConfig({
       "@scenelock/trust": p("../../packages/trust/src/index.ts"),
       "@scenelock/underwriting": p("../../packages/underwriting/src/index.ts"),
       "@scenelock/provenance": p("../provenance/src/index.ts"),
+      "@scenelock/quickscan": p("../quickscan/src/index.ts"),
       "@scenelock/marketplace": p("../marketplace/src/index.ts"),
       "@scenelock/rulepack": p("../../packages/rulepack/src/index.ts"),
       "@scenelock/incidents": p("../incidents/src/index.ts"),

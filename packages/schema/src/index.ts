@@ -17,6 +17,7 @@ export * from "./delivery.js";
 export * from "./music.js";
 export * from "./marketplace.js";
 export * from "./provenance.js";
+export * from "./quickscan.js";
 export * from "./underwriting.js";
 export * from "./portfolio.js";
 export * from "./continuity.js";
