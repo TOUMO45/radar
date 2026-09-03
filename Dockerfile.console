@@ -1,0 +1,28 @@
+# Radar Console (Next.js 15 Control Room) — Cloud Run deployment.
+# Separate from the root Dockerfile (which builds @scenelock/api); this one
+# targets apps/console. Only real internal dependency is @scenelock/schema
+# (transpiled directly via next.config.mjs's transpilePackages, no separate
+# build step needed for it). SCENELOCK_API_BASE is baked in at build time by
+# next.config.mjs's `env` block, so it's passed as a build ARG here.
+FROM node:22-slim AS build
+WORKDIR /repo
+
+RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc tsconfig.base.json turbo.json ./
+COPY packages ./packages
+COPY services ./services
+COPY apps ./apps
+RUN pnpm install --frozen-lockfile
+
+ARG SCENELOCK_API_BASE
+ENV SCENELOCK_API_BASE=${SCENELOCK_API_BASE}
+RUN pnpm --filter @scenelock/console... build
+
+FROM node:22-slim AS run
+WORKDIR /repo
+ENV NODE_ENV=production
+COPY --from=build /repo /repo
+EXPOSE 8080
+WORKDIR /repo/apps/console
+CMD ["sh", "-c", "node_modules/.bin/next start -p ${PORT:-8080}"]

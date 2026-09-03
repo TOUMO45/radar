@@ -1,3 +1,4 @@
+import type { ClassScore } from "@scenelock/schema";
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function SceneBench() {
           catch-rate by risk class · τ = {card.tau} · {card.total_cases} cases
         </div>
         <div className="flex flex-col">
-          {card.by_risk_class.map((c) => (
+          {card.by_risk_class.map((c: ClassScore) => (
             <div key={c.risk_class} className="flex items-center gap-3 px-4 py-2 border-b last:border-b-0">
               <span className="mono text-[12px] w-40">{c.risk_class}</span>
               <div className="flex-1 h-2 rounded-[2px] overflow-hidden" style={{ background: "var(--color-bg-raise)" }}>
