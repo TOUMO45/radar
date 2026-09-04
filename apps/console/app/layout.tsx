@@ -16,31 +16,52 @@ export const metadata: Metadata = {
   description: "Closed-loop QA radar for AI-generated film content",
 };
 
+const NAV = [
+  { href: "/", label: "Productions" },
+  { href: "/quickscan", label: "Quick Scan" },
+  { href: "/bench", label: "SceneBench" },
+];
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <header className="flex items-center gap-3 border-b px-4 h-11 bg-[var(--color-bg-panel)]">
-          <Link href="/" className="mono text-[15px] tracking-tight">
-            RA<span className="text-[var(--color-source-deterministic)]">DAR</span>
-          </Link>
-          <span className="text-[var(--color-text-secondary)] text-[11px] uppercase tracking-wider">
-            Review Console
-          </span>
-          <Link href="/bench" className="mono text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-            SceneBench
-          </Link>
-          <Link href="/quickscan" className="mono text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">
-            Quick Scan
-          </Link>
-          <div className="ml-auto flex items-center gap-3">
-            <RoleSwitcher />
-            <span className="mono text-[11px] text-[var(--color-status-held)] border px-2 py-[2px] rounded-[2px]">
-              DRY_RUN
-            </span>
+        <header className="topbar">
+          <div className="flex items-center gap-4 px-5 h-[52px] max-w-[1440px] mx-auto">
+            <Link href="/" className="flex items-center gap-2 group" aria-label="Radar home">
+              <span
+                className="chip chip-dot text-[var(--color-status-locked)] border-transparent bg-transparent px-0"
+                aria-hidden
+              />
+              <span className="mono text-[16px] tracking-tight font-medium">
+                RA<span className="text-[var(--color-accent)]">DAR</span>
+              </span>
+            </Link>
+            <span className="h-eyebrow hidden sm:block">Review Console</span>
+
+            <nav className="ml-4 flex items-center gap-1">
+              {NAV.map((n) => (
+                <Link
+                  key={n.href}
+                  href={n.href}
+                  className="px-3 py-[6px] rounded-[5px] text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-raise)] transition-colors"
+                >
+                  {n.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="ml-auto flex items-center gap-3">
+              <span className="mono text-[11px] text-[var(--color-text-faint)] hidden md:flex items-center gap-1">
+                <kbd className="border rounded-[3px] px-[5px] py-[1px] bg-[var(--color-bg-raise)]">⌘K</kbd>
+                to jump
+              </span>
+              <RoleSwitcher />
+              <span className="chip chip-dot text-[var(--color-status-held)]">DRY_RUN</span>
+            </div>
           </div>
         </header>
-        <main className="p-4 max-w-[1400px] mx-auto">{children}</main>
+        <main className="px-5 py-6 max-w-[1440px] mx-auto">{children}</main>
       </body>
     </html>
   );

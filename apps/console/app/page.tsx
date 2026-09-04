@@ -2,6 +2,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { DemoRunner } from "@/components/DemoRunner";
 import { EmptyRadar } from "@/components/EmptyRadar";
+import { TrustGauge } from "@/components/TrustGauge";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ const BAND_TONE: Record<string, string> = {
   amber: "var(--color-status-held)",
   red: "var(--color-status-error)",
 };
+const slateBand = (n: number) => (n >= 85 ? "green" : n >= 60 ? "amber" : "red");
 
 /** S1 — Productions (home). Portfolio status: scene-state chips, cost, open blocking. */
 export default async function ProductionsPage() {
@@ -23,114 +25,136 @@ export default async function ProductionsPage() {
   const trustByPid = new Map((portfolio?.entries ?? []).map((e) => [e.production_id, e]));
 
   return (
-    <div className="flex flex-col gap-3">
-      <h1 className="text-[18px] font-medium">Productions</h1>
+    <div className="flex flex-col gap-5">
+      <div className="flex items-end justify-between rise">
+        <div>
+          <div className="h-eyebrow">Slate</div>
+          <h1 className="text-[22px] font-medium tracking-tight">Productions</h1>
+        </div>
+        <DemoRunner />
+      </div>
 
-      {/* Slate roll-up (R8) */}
+      {/* Slate roll-up (R8) — hero */}
       {portfolio && portfolio.production_count > 0 && (
-        <div className="panel p-4 flex items-center gap-6">
-          <div className="flex flex-col items-center justify-center rounded-[10px] border px-4 py-2" style={{ borderColor: BAND_TONE[portfolio.slate_trust >= 85 ? "green" : portfolio.slate_trust >= 60 ? "amber" : "red"] }}>
-            <span className="mono text-[28px] leading-none font-medium" style={{ color: BAND_TONE[portfolio.slate_trust >= 85 ? "green" : portfolio.slate_trust >= 60 ? "amber" : "red"] }}>{portfolio.slate_trust}</span>
-            <span className="mono text-[9px] uppercase mt-1 text-[var(--color-text-secondary)]">slate trust</span>
+        <div
+          className="panel-hero p-6 flex flex-col md:flex-row items-center gap-8 rise"
+          style={{ ["--hero-accent" as string]: BAND_TONE[slateBand(portfolio.slate_trust)] }}
+        >
+          <TrustGauge
+            score={portfolio.slate_trust}
+            band={slateBand(portfolio.slate_trust)}
+            label="slate trust"
+            headline="Portfolio Trust across every lead scene"
+          />
+          <div className="flex-1 grid grid-cols-3 gap-3 w-full">
+            <Kpi label="productions" value={String(portfolio.production_count)} />
+            <Kpi
+              label="delivery-ready"
+              value={`${portfolio.deliverable_count}/${portfolio.production_count}`}
+              tone={portfolio.deliverable_count === portfolio.production_count ? "green" : "amber"}
+            />
+            <Kpi
+              label="E&O-bindable"
+              value={`${portfolio.bindable_count}/${portfolio.production_count}`}
+              tone={portfolio.bindable_count === portfolio.production_count ? "green" : "red"}
+            />
           </div>
-          <div className="flex-1 flex gap-8">
-            <div><div className="vmb-k">productions</div><div className="mono text-[18px]">{portfolio.production_count}</div></div>
-            <div><div className="vmb-k">delivery-ready</div><div className="mono text-[18px]" style={{ color: portfolio.deliverable_count === portfolio.production_count ? "var(--color-status-locked)" : "var(--color-status-held)" }}>{portfolio.deliverable_count}/{portfolio.production_count}</div></div>
-            <div><div className="vmb-k">E&amp;O-bindable</div><div className="mono text-[18px]" style={{ color: portfolio.bindable_count === portfolio.production_count ? "var(--color-status-locked)" : "var(--color-status-error)" }}>{portfolio.bindable_count}/{portfolio.production_count}</div></div>
-          </div>
-          <span className="mono text-[10px] text-[var(--color-text-secondary)] normal-case">slate deliverability at a glance</span>
         </div>
       )}
-
-      <DemoRunner />
 
       {rollups.length === 0 ? (
         <div className="panel">
           <EmptyRadar label="Radar quiet" openFindings={0} />
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          {rollups.map((r) => (
-            <div
-              key={r.production.production_id}
-              className="panel p-4 flex items-center gap-4"
-            >
-              <div className="flex-1">
-                <Link href={`/p/${r.production.production_id}`} className="text-[15px] hover:underline">
-                  {r.production.title}
-                </Link>
-                <div className="mono text-[11px] text-[var(--color-text-secondary)]">
-                  {r.production.production_id} · {r.production.mode} · τ={r.production.settings.tau}
-                </div>
-              </div>
-
-              {trustByPid.get(r.production.production_id) && (
-                <div className="text-right">
-                  <div className="vmb-k">trust</div>
-                  <div className="mono text-[15px]" style={{ color: BAND_TONE[trustByPid.get(r.production.production_id)!.trust_band] }}>
-                    {trustByPid.get(r.production.production_id)!.trust_score}
-                    <span className="text-[9px] uppercase ml-1">{trustByPid.get(r.production.production_id)!.trust_band}</span>
+        <div className="flex flex-col gap-3 stagger">
+          {rollups.map((r) => {
+            const t = trustByPid.get(r.production.production_id);
+            const held = r.open_blocking > 0;
+            return (
+              <div
+                key={r.production.production_id}
+                className="card rail p-4 flex flex-wrap items-center gap-5"
+                style={{ ["--rail-color" as string]: held ? "var(--color-status-error)" : "var(--color-status-locked)" }}
+              >
+                <div className="flex-1 min-w-[200px]">
+                  <Link
+                    href={`/p/${r.production.production_id}`}
+                    className="text-[16px] font-medium hover:text-[var(--color-accent)] transition-colors"
+                  >
+                    {r.production.title}
+                  </Link>
+                  <div className="mono text-[11px] text-[var(--color-text-secondary)] mt-[2px]">
+                    {r.production.production_id} · {r.production.mode} · τ={r.production.settings.tau}
+                  </div>
+                  <div className="flex gap-1 mt-2">
+                    {Object.entries(r.scenes_by_status).map(([status, n]) => (
+                      <span key={status} className="chip chip-soft">
+                        {status} {n as number}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              )}
 
-              <div className="flex gap-1">
-                {Object.entries(r.scenes_by_status).map(([status, n]) => (
-                  <span
-                    key={status}
-                    className="mono text-[11px] px-2 py-[2px] rounded-[2px] border text-[var(--color-status-held)]"
+                {t && (
+                  <Stat label="trust" value={String(t.trust_score)} sub={t.trust_band} tone={t.trust_band} />
+                )}
+                <Stat
+                  label="open blocking"
+                  value={String(r.open_blocking)}
+                  tone={held ? "red" : "green"}
+                />
+                <Stat label="cost to date" value={`$${r.usd_spent.toFixed(2)}`} />
+
+                <div className="flex gap-2">
+                  <Link
+                    href={`/p/${r.production.production_id}`}
+                    className="chip text-[var(--color-accent)] hover:bg-[var(--color-bg-raise)]"
                   >
-                    {status} {n}
-                  </span>
-                ))}
-              </div>
-
-              <div className="text-right">
-                <div className="vmb-k">open blocking</div>
-                <div
-                  className="mono text-[15px]"
-                  style={{
-                    color:
-                      r.open_blocking > 0
-                        ? "var(--color-status-error)"
-                        : "var(--color-status-locked)",
-                  }}
-                >
-                  {r.open_blocking}
+                    overview →
+                  </Link>
+                  <Link
+                    href={`/p/${r.production.production_id}/scenes/sc_12`}
+                    className="chip chip-soft hover:text-[var(--color-text-primary)]"
+                  >
+                    war room →
+                  </Link>
                 </div>
               </div>
-
-              <div className="text-right w-24">
-                <div className="vmb-k">cost to date</div>
-                <div className="mono text-[15px]">${r.usd_spent.toFixed(2)}</div>
-              </div>
-
-              <Link
-                href={`/p/${r.production.production_id}`}
-                className="mono text-[11px] text-[var(--color-source-deterministic)] underline"
-              >
-                overview →
-              </Link>
-              <Link
-                href={`/p/${r.production.production_id}/scenes/sc_12`}
-                className="mono text-[11px] text-[var(--color-source-deterministic)] underline"
-              >
-                war room →
-              </Link>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
+function Kpi({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="panel p-4 flex flex-col gap-1 bg-[var(--color-bg-sink)]">
+      <span className="h-eyebrow">{label}</span>
+      <span className="mono text-[24px] font-medium" style={{ color: tone ? BAND_TONE[tone] : "var(--color-text-primary)" }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+  return (
+    <div className="text-right min-w-[92px]">
+      <div className="h-eyebrow">{label}</div>
+      <div className="mono text-[17px] leading-tight" style={{ color: tone ? BAND_TONE[tone] : "var(--color-text-primary)" }}>
+        {value}
+        {sub && <span className="text-[9px] uppercase ml-1 opacity-80">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
 function ApiDown() {
   return (
-    <div
-      className="panel p-4"
-      style={{ borderLeft: "3px solid var(--color-status-error)" }}
-    >
+    <div className="panel p-4 rail" style={{ ["--rail-color" as string]: "var(--color-status-error)" }}>
       <div className="font-medium text-[var(--color-status-error)]">API unreachable</div>
       <div className="text-[var(--color-text-secondary)] mt-1">
         Start the core API first:{" "}

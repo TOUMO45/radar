@@ -53,9 +53,9 @@ export function QuickScanPanel() {
   const canSubmit = (text.trim().length > 0 || file !== null) && !busy;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="panel p-3 flex flex-col gap-2">
-        <span className="vmb-k">paste script text</span>
+    <div className="flex flex-col gap-4">
+      <div className="panel-hero p-5 flex flex-col gap-3 rise">
+        <span className="h-eyebrow">paste script text</span>
         <textarea
           value={text}
           onChange={(e) => {
@@ -63,13 +63,15 @@ export function QuickScanPanel() {
             if (e.target.value) setFile(null);
           }}
           placeholder="Paste a script excerpt, scene description, or any text to check…"
-          rows={6}
-          className="bg-[var(--color-bg-raise)] border rounded-[4px] p-2 text-[12px] mono resize-y"
+          rows={7}
+          className="bg-[var(--color-bg-sink)] border rounded-[6px] p-3 text-[13px] mono resize-y transition-shadow focus:outline-none focus:border-[var(--color-accent)] focus:shadow-[0_0_0_1px_var(--color-accent),0_0_28px_-8px_var(--color-accent)]"
         />
-        <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-secondary)]">
-          <span>— or —</span>
+        <div className="flex items-center gap-3 text-[11px] text-[var(--color-text-faint)]">
+          <span className="flex-1 h-px bg-[var(--color-line-hair)]" />
+          <span className="h-eyebrow">or</span>
+          <span className="flex-1 h-px bg-[var(--color-line-hair)]" />
         </div>
-        <span className="vmb-k">upload an image or video</span>
+        <span className="h-eyebrow">upload an image or video</span>
         <input
           type="file"
           accept="image/*,video/*"
@@ -78,7 +80,7 @@ export function QuickScanPanel() {
             setFile(f);
             if (f) setText("");
           }}
-          className="mono text-[12px]"
+          className="mono text-[12px] file:mr-3 file:rounded-[4px] file:border file:border-[var(--color-line-soft)] file:bg-[var(--color-bg-raise)] file:px-3 file:py-1 file:text-[var(--color-text-primary)] file:cursor-pointer"
         />
         {file && (
           <span className="mono text-[11px] text-[var(--color-text-secondary)]">
@@ -89,10 +91,10 @@ export function QuickScanPanel() {
         <button
           onClick={submit}
           disabled={!canSubmit}
-          className="mono text-[12px] px-3 py-1 rounded-[2px] border self-start disabled:opacity-40"
-          style={{ color: "var(--color-source-deterministic)", borderColor: "var(--color-source-deterministic)" }}
+          className="mono text-[13px] px-4 py-2 rounded-[6px] border self-start transition-all disabled:opacity-40 enabled:hover:shadow-[0_0_24px_-6px_var(--color-accent)]"
+          style={{ color: "var(--color-accent)", borderColor: "var(--color-accent)" }}
         >
-          {busy ? "scanning…" : "▶ run Quick Scan"}
+          {busy ? "⟳ scanning…" : "▶ run Quick Scan"}
         </button>
 
         {err && (
@@ -107,23 +109,31 @@ export function QuickScanPanel() {
   );
 }
 
+const SEV_RAIL: Record<string, string> = {
+  info: "var(--color-status-info)",
+  low: "#6E8BFF",
+  medium: "var(--color-status-held)",
+  high: "var(--color-status-error)",
+};
+
 function QuickScanResultView({ result }: { result: QuickScanResult }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div
-        className="panel p-3 text-[11px] text-[var(--color-text-secondary)]"
-        style={{ borderLeft: "3px solid var(--color-status-held)" }}
-      >
+    <div className="flex flex-col gap-3 rise">
+      <div className="panel p-3 text-[11px] text-[var(--color-text-secondary)] rail" style={{ ["--rail-color" as string]: "var(--color-status-held)" }}>
         {result.disclaimer}
       </div>
 
       <div className="panel overflow-hidden">
-        <div className="vmb-k px-3 py-2 border-b">
+        <div className="hud h-eyebrow px-4 py-3 border-b bg-[var(--color-bg-raise)]">
           {result.findings.length} finding{result.findings.length === 1 ? "" : "s"} · scan {result.scan_id}
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col stagger">
           {result.findings.map((f, i) => (
-            <div key={i} className="flex items-start gap-3 px-3 py-2 border-b last:border-b-0">
+            <div
+              key={i}
+              className="flex items-start gap-3 px-3 py-3 border-b last:border-b-0 rail"
+              style={{ ["--rail-color" as string]: SEV_RAIL[f.severity] }}
+            >
               <SeverityBadge severity={f.severity} />
               <span className="mono text-[11px] text-[var(--color-text-secondary)] w-32 shrink-0 mt-[2px]">
                 {f.risk_class}

@@ -50,10 +50,11 @@ export function SideNav({ pid }: { pid: string }) {
   };
 
   return (
-    <nav className="w-[196px] flex-none flex flex-col gap-4 pr-3" aria-label="Production navigation">
+    <nav className="w-[204px] flex-none flex flex-col gap-5 pr-3 sticky top-[68px] self-start" aria-label="Production navigation">
       {groups.map((g) => (
-        <div key={g.title} className="flex flex-col gap-[2px]">
-          <div className="mono text-[10px] uppercase tracking-[0.12em] text-[var(--color-text-secondary)] px-2 mb-1">
+        <div key={g.title} className="flex flex-col gap-[3px]">
+          <div className="h-eyebrow px-2 mb-1 flex items-center gap-[6px]">
+            <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-accent)]" />
             {g.title}
           </div>
           {g.items.map((it) => {
@@ -63,18 +64,18 @@ export function SideNav({ pid }: { pid: string }) {
                 key={it.href}
                 href={it.href}
                 aria-current={active ? "page" : undefined}
-                className="group flex items-center gap-2 px-2 py-[6px] rounded-[4px] text-[13px] transition-colors"
+                className="group relative flex items-center gap-2 px-3 py-[7px] rounded-[5px] text-[13px] transition-all duration-150"
                 style={{
                   background: active ? "var(--color-bg-raise)" : "transparent",
                   color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                  borderLeft: active ? "2px solid var(--color-source-deterministic)" : "2px solid transparent",
+                  boxShadow: active
+                    ? "inset 2px 0 0 var(--color-accent), 0 0 20px -10px var(--color-accent)"
+                    : "inset 2px 0 0 transparent",
                 }}
               >
                 <span className="flex-1">{it.label}</span>
                 {it.badge && (
-                  <span className="mono text-[9px] uppercase px-[5px] py-[1px] rounded-[2px] border border-[var(--color-line-hair)] text-[var(--color-text-secondary)]">
-                    {it.badge}
-                  </span>
+                  <span className="chip chip-soft !text-[9px] !px-[5px] !py-[1px]">{it.badge}</span>
                 )}
               </Link>
             );
