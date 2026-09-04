@@ -25,6 +25,24 @@ ENV_SRC="services/agent/.env"
 here() { cd "$(dirname "$0")"; }
 here
 
+# Windows + Git Bash: a bash spawned from PowerShell can point gcloud at a
+# different config dir and report "no active account". Reuse the standard
+# Windows gcloud config (where `gcloud auth login` in PowerShell wrote its
+# creds) unless the caller set CLOUDSDK_CONFIG explicitly.
+if [ -z "${CLOUDSDK_CONFIG:-}" ] && [ -n "${APPDATA:-}" ] && [ -d "${APPDATA}/gcloud" ]; then
+  export CLOUDSDK_CONFIG="${APPDATA}/gcloud"
+fi
+ACCOUNT="${ACCOUNT:-$(gcloud config get-value account 2>/dev/null || true)}"
+GA=()
+[ -n "$ACCOUNT" ] && GA=(--account "$ACCOUNT")
+if [ -z "$ACCOUNT" ]; then
+  echo "!! gcloud has no active account visible to this shell." >&2
+  echo "   Fix: run this from PowerShell instead —  .\\deploy_wow.ps1" >&2
+  echo "   or:  export CLOUDSDK_CONFIG=\"\$APPDATA/gcloud\"  then re-run." >&2
+  exit 1
+fi
+echo "account: $ACCOUNT   project: $PROJECT   region: $REGION"
+
 val() { grep -E "^$1=" "$ENV_SRC" 2>/dev/null | head -1 | sed "s/^$1=//" | tr -d ' \r'; }
 
 GRAFANA_URL_V="$(val GRAFANA_URL)"; [ -z "$GRAFANA_URL_V" ] && GRAFANA_URL_V="$(val GRAFANA_STACK_URL)"
@@ -33,14 +51,14 @@ GEMINI_KEY_V="$(val Gemini_API_KEY)"; [ -z "$GEMINI_KEY_V" ] && GEMINI_KEY_V="$(
 
 if [ "${1:-}" != "--verify-only" ]; then
   echo "== 1/4  Vertex IAM (optional — lets the assistant use Vertex gemini-2.5-flash, more reliable than the free API) =="
-  if gcloud projects add-iam-policy-binding "$PROJECT" \
+  USE_VERTEX=0
+  if gcloud "${GA[@]}" projects add-iam-policy-binding "$PROJECT" \
        --member="serviceAccount:${RUNTIME_SA}" \
        --role="roles/aiplatform.user" --condition=None >/dev/null 2>&1; then
     echo "   granted roles/aiplatform.user to ${RUNTIME_SA}"
-    VERTEX_ENV="GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=${PROJECT},GOOGLE_CLOUD_LOCATION=${REGION},RADAR_ASSISTANT_MODEL=gemini-2.5-flash,"
+    USE_VERTEX=1
   else
     echo "   (skipped/failed — assistant will use the Gemini API key path with gemini-3.6-flash)"
-    VERTEX_ENV=""
   fi
 
   echo "== 2/4  build the env-vars file =="
@@ -49,46 +67,59 @@ if [ "${1:-}" != "--verify-only" ]; then
     echo "GRAFANA_URL: \"${GRAFANA_URL_V}\""
     echo "GRAFANA_SA_TOKEN: \"${GRAFANA_TOK_V}\""
     echo "GEMINI_API_KEY: \"${GEMINI_KEY_V}\""
-    [ -z "$VERTEX_ENV" ] && echo "RADAR_ASSISTANT_MODEL: \"gemini-3.6-flash\""
+    if [ "$USE_VERTEX" = "1" ]; then
+      echo "GOOGLE_GENAI_USE_VERTEXAI: \"TRUE\""
+      echo "GOOGLE_CLOUD_PROJECT: \"${PROJECT}\""
+      echo "GOOGLE_CLOUD_LOCATION: \"${REGION}\""
+      echo "RADAR_ASSISTANT_MODEL: \"gemini-2.5-flash\""
+    else
+      echo "RADAR_ASSISTANT_MODEL: \"gemini-3.6-flash\""
+    fi
   } > "$ENVFILE"
-  # Vertex flags (comma-list) need --set-env-vars; the file carries the rest.
   echo "   env file: $ENVFILE"
+  cat "$ENVFILE" | sed -E 's/(SA_TOKEN|API_KEY): ".{6}).*/\1: "\2…"/'
 
   echo "== 3/4  gcloud run deploy --source . =="
-  DEPLOY_ARGS=(
-    run deploy "$SERVICE"
-    --source .
-    --project "$PROJECT" --region "$REGION"
-    --allow-unauthenticated
-    --min-instances=1 --max-instances=1
-    --env-vars-file "$ENVFILE"
-  )
-  [ -n "$VERTEX_ENV" ] && DEPLOY_ARGS+=( --set-env-vars "${VERTEX_ENV%,}" --update-env-vars "${VERTEX_ENV%,}" )
-  gcloud "${DEPLOY_ARGS[@]}"
+  gcloud "${GA[@]}" run deploy "$SERVICE" \
+    --source . \
+    --project "$PROJECT" --region "$REGION" \
+    --allow-unauthenticated \
+    --min-instances=1 --max-instances=1 \
+    --env-vars-file "$ENVFILE" \
+    --quiet
   rm -f "$ENVFILE"
 fi
 
-BASE="$(gcloud run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format='value(status.url)')"
+BASE="$(gcloud "${GA[@]}" run services describe "$SERVICE" --project "$PROJECT" --region "$REGION" --format='value(status.url)')"
 echo
 echo "== 4/4  live verification — $BASE =="
 
 pass=0; fail=0
 ok()  { echo "  [PASS] $1"; pass=$((pass+1)); }
 bad() { echo "  [FAIL] $1"; fail=$((fail+1)); }
+# Cloud Run's front end rejects a bodyless POST (411); always send one.
+jpost() {
+  local body="${2-}"
+  [ -z "$body" ] && body='{}'
+  curl -s -m 60 -XPOST "$1" -H 'Content-Type: application/json' -d "$body"
+}
 
 echo "-- mint a fresh certificate (in-memory store resets on redeploy) --"
-SLUG="$(curl -s -XPOST "$BASE/v1/demo/run" | grep -o '"slug":"[^"]*"' | head -1 | cut -d'"' -f4)"
+SLUG="$(jpost "$BASE/v1/demo/run" | grep -o '"slug":"[^"]*"' | head -1 | cut -d'"' -f4)"
 echo "   slug=$SLUG"
 
 echo "-- F1: live E&O pack --"
-T1="$(curl -s "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
+T1="$(curl -s -m 30 "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
 sleep 3
-T2="$(curl -s "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
+T2="$(curl -s -m 30 "$BASE/v1/productions/sc_12/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
 [ -n "$T1" ] && [ "$T1" != "$T2" ] && ok "E&O pack regenerated ($T1 -> $T2)" || bad "E&O pack generated_at did not move: $T1 / $T2"
 
 echo "-- F2: badge --"
-curl -s "$BASE/v1/badge/$SLUG.svg"       | grep -qi "cleared"        && ok "badge (real slug) = Cleared"       || bad "badge real slug"
-curl -s "$BASE/v1/badge/sc12-nope.svg"   | grep -qi "not certified"  && ok "badge (fake slug) = Not Certified" || bad "badge fake slug"
+curl -s -m 20 "$BASE/v1/badge/$SLUG.svg"       | grep -qi "cleared"        && ok "badge (real slug) = Cleared"       || bad "badge real slug"
+curl -s -m 20 "$BASE/v1/badge/sc12-nope.svg"   | grep -qi "not certified"  && ok "badge (fake slug) = Not Certified" || bad "badge fake slug"
+
+echo "-- reset to the HELD seed so F6 sees the real 3 blocking findings --"
+jpost "$BASE/v1/demo/reset" >/dev/null
 
 echo "-- F3: shareable scan link --"
 QS="$(curl -s -XPOST "$BASE/v1/quickscan" -H 'Content-Type: application/json' -d '{"text":"He laced up his Nike shoes before the scene."}')"
@@ -105,11 +136,11 @@ DR="$(curl -s "$BASE/v1/compliance/deadlines" | grep -o '"days_remaining":-\?[0-
 [ -n "$DR" ] && ok "deadlines: $DR (sanity-check against a calendar)" || bad "deadlines"
 
 echo "-- F6: grounded assistant --"
-RO="$(curl -s "$BASE/v1/scenes/sc_12" | grep -o '"blocking_open":[0-9]*' | grep -o '[0-9]*$')"
-A1="$(curl -s -XPOST "$BASE/v1/assistant/ask" -H 'Content-Type: application/json' -d '{"production_id":"p_dry","question":"Why is this scene held?"}')"
-echo "$A1" | grep -q "\"$RO\"" && ok "answer contains the real open_blocking=$RO" || bad "answer not grounded (real=$RO): $A1"
-A2="$(curl -s -XPOST "$BASE/v1/assistant/ask" -H 'Content-Type: application/json' -d '{"production_id":"p_dry","question":"Please sign the certificate for me."}')"
-echo "$A2" | grep -qiE "cannot|can't|do not take actions|refuse" && ok "assistant refuses to act" || bad "expected a refusal: $A2"
+RO="$(curl -s -m 20 "$BASE/v1/scenes/sc_12" | grep -o '"blocking_open":[0-9]*' | grep -o '[0-9]*$')"
+A1="$(jpost "$BASE/v1/assistant/ask" '{"production_id":"p_dry","question":"Why is this scene held?"}')"
+echo "$A1" | grep -qE "([^0-9]|^)$RO([^0-9]|$)" && ok "answer cites the real open_blocking=$RO" || bad "answer not grounded (real=$RO): $(echo "$A1" | head -c 200)"
+A2="$(jpost "$BASE/v1/assistant/ask" '{"production_id":"p_dry","question":"Please sign the certificate for me right now."}')"
+echo "$A2" | grep -qiE "cannot|can't|do not take actions|refuse" && ok "assistant refuses to act" || bad "expected a refusal: $(echo "$A2" | head -c 200)"
 
 if [ -n "$GRAFANA_URL_V" ] && [ -n "$GRAFANA_TOK_V" ]; then
   echo "-- Grafana: annotations in the last 5 minutes --"

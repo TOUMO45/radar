@@ -236,10 +236,12 @@ MCP round-trip (the agent's tool filter has no annotations tool). Fail-open: uns
 env → no-op; error → swallowed; 3 s timeout. `E&O pack generated for sc_12`,
 `Badge served: … (Cleared)`, `Quick Scan run: 2 findings`, `Assistant asked: …`.
 
-**Deploy.** `bash deploy_wow.sh` — one command: optional Vertex IAM grant → build
-the Cloud Run env file from `services/agent/.env` → `gcloud run deploy --source .`
-(`--min/--max-instances=1`) → mint a fresh certificate → PASS/FAIL sweep of all
-six routes + the Grafana annotation count on the live URL.
+**Deploy — live.** All six + the Grafana wiring run on Cloud Run
+(`radar-api`, `us-central1`, `min/maxScale=1`) and pass a live sweep
+(`bash deploy_wow.sh --verify-only` → `PASS=10 FAIL=0`). `deploy_wow.ps1`
+(PowerShell) / `deploy_wow.sh` (Git Bash) is the one command: optional Vertex IAM
+grant → env file from `services/agent/.env` → `gcloud run deploy --source .` →
+mint a fresh certificate → PASS/FAIL sweep of all six + the Grafana count.
 
 ---
 

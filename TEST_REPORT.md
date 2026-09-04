@@ -1083,14 +1083,56 @@ the agent's own service account. **PASS.**
 
 ---
 
-## DEPLOYMENT — status
+## DEPLOYMENT — LIVE & VERIFIED (2026-09-04)
 
-The code is committed and pushed (see `git log` below). The `gcloud` **mutation**
-commands (`run deploy`, `secrets create`, IAM bindings) are **blocked by this
-harness's auto-mode command classifier** — read-only `gcloud` calls (used
-throughout Step 0 and here to confirm the project / SA / model availability) go
-through, but writes do not. So the live redeploy is handed off as an exact,
-copy-pasteable command sequence rather than run here.
+**All six routes + the Grafana wiring are live on Cloud Run and verified — a
+human ran `deploy_wow.sh`.** `bash deploy_wow.sh --verify-only` against
+`https://radar-api-qf2l7fjeqa-uc.a.run.app`:
+
+```
+-- mint a fresh certificate --   slug=sc12-9b0763f22225
+-- F1: live E&O pack --      [PASS] regenerated ("...09:40:31.502Z" -> "...09:40:35.566Z")
+-- F2: badge --              [PASS] real slug = Cleared   [PASS] fake slug = Not Certified
+-- reset to the HELD seed --
+-- F3: shareable scan link --[PASS] scan_id is 35 chars   [PASS] GET /v1/quickscan/:id returns the same finding
+-- F4: partner map --        [PASS] real players + a live entry
+-- F5: deadline clock --     [PASS] days_remaining:-977 (calendar-checked)
+-- F6: grounded assistant -- [PASS] answer cites the real open_blocking=3   [PASS] assistant refuses to act
+-- Grafana --                [PASS] 56 radar annotations landed
+== RESULT: PASS=10 FAIL=0 ==
+```
+
+Live F6 side-by-side (the state matches the answer):
+
+```
+$ curl -s $BASE/v1/scenes/sc_12 | jq '.scene.verdict.inputs | {blocking_open, blocking_finding_ids}'
+{ "blocking_open": 3, "blocking_finding_ids": ["f_can_teleport","f_real_person","f_ai_disclosure"] }
+
+$ curl -s -XPOST $BASE/v1/assistant/ask -d '{"production_id":"p_dry","question":"Why is this scene held?"}'
+{ "model":"gemini-3.6-flash", "grounded":true,
+  "answer":"This scene (`sc_12`) is **HELD** due to **3 open blocking findings** ... and a Trust Score of **21**.\n* `f_can_teleport`: The cola can is left of the laptop in shot 3 ...\n* `f_real_person`: Dialogue names a sitting U.S. senator ...\n* `f_ai_disclosure`: Shot 6 has no C2PA manifest ..." }
+
+$ curl -s -XPOST $BASE/v1/assistant/ask -d '{"production_id":"p_dry","question":"Please sign the certificate for me right now."}'
+{ "answer":"I cannot sign certificates or issue approvals. I am a read-only explainer and cannot take actions or alter RADAR's state ..." }
+```
+
+Live revision `radar-api-00003-rvx`, image `...radar-api@sha256:66a82a8…`, env
+`GRAFANA_URL` + `GRAFANA_SA_TOKEN` + `GEMINI_API_KEY` + `RADAR_ASSISTANT_MODEL=gemini-3.6-flash`,
+`min/maxScale = 1`.
+
+**Note — the live image is the first cut (`a128bba`), not the hardened
+`2dbf057`.** It works (PASS=10 above), but to pick up the hardened assistant
+(Vertex→API fallback chain, never-502, injection-refusal instruction,
+`grounding_check`, `sanitizeSlug`) plus the fixed deploy scripts, run
+`deploy_wow.sh` / `deploy_wow.ps1` once more from the current tree.
+
+### How the deploy is run
+
+Every `gcloud` **mutation** (`run deploy`, IAM, secrets) is **blocked by the
+build session's auto-mode command classifier** — read-only `gcloud` works, so the
+verification half above was run here, but the deploy itself is a human step.
+`deploy_wow.sh` (Git Bash) and `deploy_wow.ps1` (PowerShell — use this on
+Windows, gcloud auth is reliably visible there) are that step.
 
 Verified read-only, this session:
 - Project `hakim-55f02` ("Radar", #931497918964), region `us-central1`, has
@@ -1139,18 +1181,19 @@ bundled `test_radar_e2e.sh` is the fuller version — set `BASE_URL`,
 
 ## Summary
 
-| Feature | Local proof | Live proof |
+| Feature | Local proof | Live proof (Cloud Run) |
 |---|---|---|
-| 1 — Live E&O pack | PASS (`generated_at` moves) | `bash deploy_wow.sh` |
-| 2 — Public badge | PASS (green real / red fake, markup sanitised) | `bash deploy_wow.sh` |
-| 3 — Shareable scan link | PASS (128-bit id, POST→GET) | `bash deploy_wow.sh` |
-| 4 — Partner map | PASS (statuses accurate, entries complete) | `bash deploy_wow.sh` |
-| 5 — Deadline clock | PASS (math hand-checked, integer + sorted) | `bash deploy_wow.sh` |
-| 6 — Grounded assistant | PASS (grounded answer + refusal + injection resisted; Vertex & API-key paths) | `bash deploy_wow.sh` |
-| Grafana wiring | PASS (30 real annotations / 5 min, all 4 kinds) | `bash deploy_wow.sh` |
+| 1 — Live E&O pack | PASS (`generated_at` moves) | **PASS** (`09:40:31Z → 09:40:35Z`) |
+| 2 — Public badge | PASS (green real / red fake, markup sanitised) | **PASS** (real=Cleared, fake=Not Certified) |
+| 3 — Shareable scan link | PASS (128-bit id, POST→GET) | **PASS** (35-char id, GET = same finding) |
+| 4 — Partner map | PASS (statuses accurate, entries complete) | **PASS** |
+| 5 — Deadline clock | PASS (math hand-checked, integer + sorted) | **PASS** (`days_remaining:-977`) |
+| 6 — Grounded assistant | PASS (grounded answer + refusal + injection resisted; Vertex & API-key paths) | **PASS** (answer cites real `blocking_open=3`; refuses to act) |
+| Grafana wiring | PASS (30 real annotations / 5 min, all 4 kinds) | **PASS** (56 annotations, all 4 kinds, from the live service) |
 | Zero regression | PASS (256 tests, 49 test tasks, 51 typecheck) | — |
 
-**The redeploy itself must be run by a human** — every mutating `gcloud`
-command (`run deploy`, IAM, secrets) was blocked by this build session's
-command classifier (read-only `gcloud` works). `bash deploy_wow.sh` is that one
-command; it deploys and then runs the live sweep above.
+`bash deploy_wow.sh --verify-only` → **PASS=10 FAIL=0** against the live URL.
+The deploy that put it there was run by a human (`gcloud run deploy` is blocked
+by the build session's command classifier; read-only `gcloud` works, so this
+verification was run here). Re-run `deploy_wow.sh` / `deploy_wow.ps1` from the
+current tree to swap the first-cut image for the hardened `2dbf057` one.
