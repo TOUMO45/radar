@@ -42,9 +42,10 @@ if (-not $VerifyOnly) {
   try {
     gcloud projects add-iam-policy-binding $Project --member="serviceAccount:$RuntimeSA" --role="roles/aiplatform.user" --condition=None --quiet | Out-Null
     Write-Host "   granted roles/aiplatform.user -> assistant uses Vertex gemini-2.5-flash"
-    $vertexEnv = "GOOGLE_GENAI_USE_VERTEXAI=TRUE,GOOGLE_CLOUD_PROJECT=$Project,GOOGLE_CLOUD_LOCATION=$Region,RADAR_ASSISTANT_MODEL=gemini-2.5-flash"
+    $useVertex = $true
   } catch {
     Write-Host "   (skipped/failed -> assistant uses the Gemini API key path, gemini-3.6-flash)"
+    $useVertex = $false
   }
 
   Write-Host "`n== 2/4  env-vars file =="
@@ -54,21 +55,28 @@ if (-not $VerifyOnly) {
     "GRAFANA_SA_TOKEN: `"$GrafanaTok`"",
     "GEMINI_API_KEY: `"$GeminiKey`""
   )
-  if (-not $vertexEnv) { $lines += "RADAR_ASSISTANT_MODEL: `"gemini-3.6-flash`"" }
+  if ($useVertex) {
+    $lines += "GOOGLE_GENAI_USE_VERTEXAI: `"TRUE`""
+    $lines += "GOOGLE_CLOUD_PROJECT: `"$Project`""
+    $lines += "GOOGLE_CLOUD_LOCATION: `"$Region`""
+    $lines += "RADAR_ASSISTANT_MODEL: `"gemini-2.5-flash`""
+  } else {
+    $lines += "RADAR_ASSISTANT_MODEL: `"gemini-3.6-flash`""
+  }
   Set-Content -Path $envFile -Value $lines -Encoding utf8
   Write-Host "   $envFile"
+  Get-Content $envFile | ForEach-Object { $_ -replace '(SA_TOKEN|API_KEY): "(.{6}).*', '$1: "$2..."' } | Write-Host
 
   Write-Host "`n== 3/4  gcloud run deploy --source . =="
-  $deployArgs = @(
-    "run","deploy",$Service,
-    "--source",".",
-    "--project",$Project,"--region",$Region,
-    "--allow-unauthenticated",
-    "--min-instances=1","--max-instances=1",
-    "--env-vars-file",$envFile
-  )
-  if ($vertexEnv) { $deployArgs += @("--update-env-vars",$vertexEnv) }
-  & gcloud @deployArgs
+  # env-vars-file is the ONLY env flag — it must not be combined with
+  # --set-env-vars / --update-env-vars (gcloud rejects that).
+  & gcloud run deploy $Service `
+    --source . `
+    --project $Project --region $Region `
+    --allow-unauthenticated `
+    --min-instances=1 --max-instances=1 `
+    --env-vars-file $envFile `
+    --quiet
   Remove-Item $envFile -ErrorAction SilentlyContinue
 }
 
