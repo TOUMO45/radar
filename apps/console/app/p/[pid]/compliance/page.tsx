@@ -2,6 +2,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { SelfHealPanel } from "@/components/SelfHealPanel";
 import { LikenessResolver } from "@/components/LikenessResolver";
+import { TrustGauge } from "@/components/TrustGauge";
 
 export const dynamic = "force-dynamic";
 
@@ -53,35 +54,29 @@ export default async function CompliancePage({
 
       {/* Trust Score */}
       {trust && (
-        <div className="panel p-4 flex items-center gap-5">
-          <div
-            className="flex flex-col items-center justify-center rounded-[10px] border w-[120px] py-3"
-            style={{ borderColor: BAND_TONE[trust.band] }}
-          >
-            <span className="mono text-[44px] leading-none font-medium" style={{ color: BAND_TONE[trust.band] }}>
-              {trust.score}
-            </span>
-            <span className="mono text-[11px] uppercase mt-1" style={{ color: BAND_TONE[trust.band] }}>
-              {trust.band}
-            </span>
-          </div>
+        <div
+          className="panel-hero p-5 flex items-center gap-6 rise"
+          style={{ ["--hero-accent" as string]: BAND_TONE[trust.band] }}
+        >
+          <TrustGauge score={trust.score} band={trust.band} size={116} label="trust score" />
           <div className="flex-1">
-            <div className="vmb-k mb-1">Radar Trust Score</div>
-            <div className="text-[14px] mb-3" style={{ color: BAND_TONE[trust.band] }}>
+            <div className="h-eyebrow mb-1">Radar Trust Score</div>
+            <div className="text-[14px] mb-3 font-medium" style={{ color: BAND_TONE[trust.band] }}>
               {trust.headline}
             </div>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-[7px]">
               {trust.breakdown.map((d) => (
                 <div key={d.key} className="flex items-center gap-3">
                   <span className="text-[12px] w-[220px] text-[var(--color-text-secondary)]">
                     {d.label} <span className="mono text-[10px]">·{Math.round(d.weight * 100)}%</span>
                   </span>
-                  <div className="flex-1 h-[6px] rounded-full bg-[var(--color-bg-raise)] overflow-hidden">
+                  <div className="flex-1 h-[7px] rounded-full bg-[var(--color-bg-sink)] overflow-hidden">
                     <div
-                      className="h-full rounded-full"
+                      className="h-full rounded-full transition-[width] duration-700 ease-out"
                       style={{
                         width: `${d.score}%`,
                         background: d.score >= 85 ? "var(--color-status-locked)" : d.score >= 60 ? "var(--color-status-held)" : "var(--color-status-error)",
+                        boxShadow: `0 0 8px -1px ${d.score >= 85 ? "var(--color-status-locked)" : d.score >= 60 ? "var(--color-status-held)" : "var(--color-status-error)"}`,
                       }}
                     />
                   </div>
@@ -154,9 +149,13 @@ export default async function CompliancePage({
           {compliance.findings.length === 0 ? (
             <div className="px-4 py-6 text-[var(--color-text-secondary)]">Radar quiet — nothing to disclose.</div>
           ) : (
-            <div className="flex flex-col">
+            <div className="flex flex-col stagger">
               {compliance.findings.map((f) => (
-                <div key={f.finding_id} className="px-4 py-3 border-b last:border-b-0 flex items-start gap-3">
+                <div
+                  key={f.finding_id}
+                  className="px-4 py-3 border-b last:border-b-0 flex items-start gap-3 rail"
+                  style={{ ["--rail-color" as string]: f.blocking ? "var(--color-status-error)" : "var(--color-line-soft)" }}
+                >
                   <span
                     className="mono text-[10px] uppercase px-2 py-[1px] rounded-[2px] border mt-[2px]"
                     style={{ color: SEV_TONE[f.severity], borderColor: "var(--color-line-hair)" }}

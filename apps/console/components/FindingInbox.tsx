@@ -118,11 +118,15 @@ export function FindingInbox({ findings: initial }: { findings: Finding[] }) {
         <div className="mono text-[11px] text-[var(--color-source-deterministic)]">{flash}</div>
       )}
 
-      <div className="panel overflow-hidden">
-        <div className="vmb-k px-3 py-2 border-b">
-          {filtered.length} findings · {filtered.filter((f) => f.blocking).length} blocking
+      <div className="panel-hero overflow-hidden rise">
+        <div className="hud h-eyebrow px-4 py-3 border-b bg-[var(--color-bg-raise)] flex items-center gap-2">
+          <span>{filtered.length} findings</span>
+          <span className="text-[var(--color-text-faint)]">·</span>
+          <span style={{ color: filtered.some((f) => f.blocking) ? "var(--color-status-error)" : undefined }}>
+            {filtered.filter((f) => f.blocking).length} blocking
+          </span>
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col stagger">
           {filtered.map((f, i) => (
             <button
               key={f.finding_id}
@@ -130,7 +134,7 @@ export function FindingInbox({ findings: initial }: { findings: Finding[] }) {
                 setSel(i);
                 setOpenId(f.finding_id);
               }}
-              className="flex items-center gap-3 px-3 py-2 border-b last:border-b-0 text-left"
+              className="flex items-center gap-3 px-3 py-[10px] border-b last:border-b-0 text-left transition-colors hover:bg-[var(--color-bg-raise)]"
               style={{ background: i === sel ? "var(--color-bg-raise)" : undefined }}
             >
               <span
@@ -195,11 +199,12 @@ function Chips<T extends string>({
         <button
           key={o}
           onClick={() => set(o)}
-          className="mono px-2 py-[2px] rounded-[2px] border"
+          className="mono px-2 py-[2px] rounded-[3px] border"
           style={{
             color: o === value ? "var(--color-bg-base)" : "var(--color-text-secondary)",
-            background: o === value ? "var(--color-source-deterministic)" : "transparent",
-            borderColor: "var(--color-line-hair)",
+            background: o === value ? "var(--color-accent)" : "transparent",
+            borderColor: o === value ? "var(--color-accent)" : "var(--color-line-hair)",
+            boxShadow: o === value ? "0 0 12px -4px var(--color-accent)" : "none",
           }}
         >
           {o}
@@ -213,10 +218,10 @@ function Chips<T extends string>({
 function FindingDrawer({ finding, onClose }: { finding: Finding; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] fade-in" />
       <div
-        className="relative w-[520px] max-w-[92vw] h-full overflow-y-auto p-4 flex flex-col gap-3"
-        style={{ background: "var(--color-bg-panel)", borderLeft: "1px solid var(--color-line-hair)" }}
+        className="relative w-[520px] max-w-[92vw] h-full overflow-y-auto p-5 flex flex-col gap-3 slide-in"
+        style={{ background: "var(--color-bg-panel)", borderLeft: "1px solid var(--color-line-soft)", boxShadow: "-24px 0 60px -20px rgba(0,0,0,0.7)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
