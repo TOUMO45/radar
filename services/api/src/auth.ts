@@ -61,3 +61,23 @@ export function resolveIdentity(headers: HeaderBag): RestPrincipal {
   }
   return { role: "qa_reviewer", by };
 }
+
+/**
+ * Same identity model as `resolveIdentity`, but distinguishes "no credential
+ * presented at all" (401) from "a credential was presented but doesn't carry
+ * an allowed role" (403) — for routes gating genuinely sensitive data
+ * (subject names, consent documents) where that distinction is worth making
+ * explicit, rather than folding both into 403 the way the earlier
+ * producer/legal/sre_admin write-route checks do.
+ */
+export function requireRole(
+  headers: HeaderBag,
+  allowed: readonly Role[],
+): { ok: true; role: Role; by: string } | { ok: false; code: 401 | 403; error: string } {
+  const authz = first(headers["authorization"]).trim();
+  if (!authz) return { ok: false, code: 401, error: "authentication required" };
+  const { role, by } = resolveIdentity(headers);
+  if (!allowed.includes(role))
+    return { ok: false, code: 403, error: `requires one of: ${allowed.join(", ")}` };
+  return { ok: true, role, by };
+}

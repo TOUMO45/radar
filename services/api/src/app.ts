@@ -4,7 +4,7 @@ import { AdjudicationDecision } from "@scenelock/schema";
 import { registerVerifyRoute } from "@scenelock/verifier";
 import { buildContext, type AppContext } from "./context.js";
 import { Services } from "./services.js";
-import { resolveIdentity } from "./auth.js";
+import { resolveIdentity, requireRole } from "./auth.js";
 import { registerQuickScanRoute } from "./quickscan-route.js";
 import { rateLimit } from "./rate-limit.js";
 import { annotate } from "./grafana.js";
@@ -12,6 +12,11 @@ import { PARTNERS } from "./partners.js";
 import { computeDeadlines } from "./deadlines.js";
 import { askAssistant } from "./assistant.js";
 import { renderBadgeSvg, sanitizeSlug } from "./badge.js";
+
+// The E&O / underwriting pack is subject-named consent + compliance data —
+// gated the same as /v1/scenes/:sid/certify and friends (VULN-1 pattern),
+// not treated as public like /verify/:slug (bug-hunt audit, 2026-09-05).
+const UNDERWRITING_ROLES = ["producer", "legal", "sre_admin"] as const;
 
 /**
  * REST surface — spec F.1. P0 read paths + the adjudication write path;
@@ -299,14 +304,21 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
     return r;
   });
 
-  // E&O / Underwriting Pack (roadmap R1) — the binder a distributor's insurer reads.
+  // E&O / Underwriting Pack (roadmap R1) — the binder a distributor's insurer
+  // reads: named subjects, a consent-document URI, narrative findings. Gated
+  // (bug-hunt audit, 2026-09-05) — this is privileged data, not a public
+  // artifact like /verify/:slug.
   app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/underwriting-pack", async (req, reply) => {
+    const auth = requireRole(req.headers, UNDERWRITING_ROLES);
+    if (!auth.ok) return reply.code(auth.code).send({ error: auth.error });
     const pack = await svc.underwritingPack(req.params.sid);
     if (!pack) return reply.code(404).send({ error: "scene not found" });
     return { pack };
   });
 
   app.get<{ Params: { sid: string } }>("/v1/scenes/:sid/underwriting-pack.md", async (req, reply) => {
+    const auth = requireRole(req.headers, UNDERWRITING_ROLES);
+    if (!auth.ok) return reply.code(auth.code).send({ error: auth.error });
     const md = await svc.underwritingPackMarkdown(req.params.sid);
     if (md === null) return reply.code(404).send({ error: "scene not found" });
     return reply
@@ -324,8 +336,10 @@ export function buildApp(ctx: AppContext = buildContext()): FastifyInstance {
   // deterministic assembler as the scene routes above; `generated_at` is
   // request-time (SystemClock in prod), so two calls seconds apart differ —
   // it is genuinely regenerated, never a cached file. Accepts a production id
-  // or a bare scene id.
+  // or a bare scene id. Gated the same as the scene-scoped routes above.
   app.get<{ Params: { pid: string } }>("/v1/productions/:pid/underwriting-pack", async (req, reply) => {
+    const auth = requireRole(req.headers, UNDERWRITING_ROLES);
+    if (!auth.ok) return reply.code(auth.code).send({ error: auth.error });
     const bundle = await svc.underwritingPackBundle(req.params.pid);
     if (!bundle) return reply.code(404).send({ error: "no production or scene for that id" });
     await annotate(`E&O pack generated for ${bundle.scene_id}`, ["underwriting", bundle.scene_id]);

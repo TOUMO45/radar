@@ -432,7 +432,7 @@ describe("@scenelock/api — P4 remediation loop + budget governor", () => {
 
 describe("@scenelock/api — R1 E&O / Underwriting Pack", () => {
   it("GET /v1/scenes/:sid/underwriting-pack assembles the binder; the seed is not yet bindable", async () => {
-    const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/underwriting-pack" });
+    const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/underwriting-pack", headers: asRole("producer") });
     expect(res.statusCode).toBe(200);
     const { pack } = res.json();
 
@@ -451,7 +451,7 @@ describe("@scenelock/api — R1 E&O / Underwriting Pack", () => {
   });
 
   it("GET /v1/scenes/:sid/underwriting-pack.md serves the human binder as markdown", async () => {
-    const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/underwriting-pack.md" });
+    const res = await app.inject({ method: "GET", url: "/v1/scenes/sc_12/underwriting-pack.md", headers: asRole("legal") });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("text/markdown");
     expect(res.body).toContain("# E&O / Underwriting Pack");
@@ -460,14 +460,51 @@ describe("@scenelock/api — R1 E&O / Underwriting Pack", () => {
 
   it("after auto-remediate reaches LOCKED, the pack carries the signed certificate", async () => {
     await app.inject({ method: "POST", url: "/v1/scenes/sc_12/auto-remediate" });
-    const { pack } = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12/underwriting-pack" })).json();
+    const { pack } = (await app.inject({ method: "GET", url: "/v1/scenes/sc_12/underwriting-pack", headers: asRole("producer") })).json();
     expect(pack.certificate.present).toBe(true);
     expect(pack.certificate.verify_path).toContain("/verify/");
     expect(pack.checklist.find((c: { id: string }) => c.id === "signed_certificate").status).toBe("pass");
   });
 
   it("404s for an unknown scene", async () => {
-    expect((await app.inject({ method: "GET", url: "/v1/scenes/nope/underwriting-pack" })).statusCode).toBe(404);
+    expect(
+      (await app.inject({ method: "GET", url: "/v1/scenes/nope/underwriting-pack", headers: asRole("producer") })).statusCode,
+    ).toBe(404);
+  });
+
+  // 2026-09-05 bug-hunt audit: this is subject-named consent + compliance
+  // data (real names, a consent-document URI, narrative findings) — gated
+  // the same as /v1/scenes/:sid/certify, no longer public like /verify/:slug.
+  describe("access control (bug-hunt audit, 2026-09-05)", () => {
+    const routes = [
+      { method: "GET" as const, url: "/v1/scenes/sc_12/underwriting-pack" },
+      { method: "GET" as const, url: "/v1/scenes/sc_12/underwriting-pack.md" },
+      { method: "GET" as const, url: "/v1/productions/p_dry/underwriting-pack" },
+    ];
+
+    it.each(routes)("$url — no token -> 401", async ({ method, url }) => {
+      const res = await app.inject({ method, url });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().error).toMatch(/authentication required/i);
+    });
+
+    it.each(routes)("$url — a token that isn't producer/legal/sre_admin -> 403", async ({ method, url }) => {
+      // a syntactically valid bearer token that doesn't map to any real role
+      // token resolves to qa_reviewer (the VULN-1 fallback) — not allowed here.
+      const res = await app.inject({ method, url, headers: { authorization: "Bearer not_a_real_token" } });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it.each(routes)("$url — producer token -> 200 with the real content", async ({ method, url }) => {
+      const res = await app.inject({ method, url, headers: asRole("producer") });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.length).toBeGreaterThan(0);
+    });
+
+    it.each(routes)("$url — legal token -> 200 too", async ({ method, url }) => {
+      const res = await app.inject({ method, url, headers: asRole("legal") });
+      expect(res.statusCode).toBe(200);
+    });
   });
 });
 
@@ -669,7 +706,7 @@ describe("@scenelock/api — VULN-1 regression: a raw x-scenelock-role header gr
 describe("@scenelock/api — Wow features (additive, no existing route changed)", () => {
   // FEATURE 1 — Live E&O pack, production-scoped
   it("F1: GET /v1/productions/:pid/underwriting-pack returns pack + markdown + request-time generated_at", async () => {
-    const r = await app.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack" });
+    const r = await app.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack", headers: asRole("producer") });
     expect(r.statusCode).toBe(200);
     const b = r.json();
     expect(b.pack.schema_version).toBe("1.0");
@@ -679,13 +716,13 @@ describe("@scenelock/api — Wow features (additive, no existing route changed)"
   });
 
   it("F1: also accepts a bare scene id in the :pid slot (demo/e2e harness passes one)", async () => {
-    const r = await app.inject({ method: "GET", url: "/v1/productions/sc_12/underwriting-pack" });
+    const r = await app.inject({ method: "GET", url: "/v1/productions/sc_12/underwriting-pack", headers: asRole("producer") });
     expect(r.statusCode).toBe(200);
     expect(r.json().scene_id).toBe("sc_12");
   });
 
   it("F1: unknown id → 404", async () => {
-    const r = await app.inject({ method: "GET", url: "/v1/productions/nope/underwriting-pack" });
+    const r = await app.inject({ method: "GET", url: "/v1/productions/nope/underwriting-pack", headers: asRole("producer") });
     expect(r.statusCode).toBe(404);
   });
 
@@ -693,9 +730,9 @@ describe("@scenelock/api — Wow features (additive, no existing route changed)"
     const live = buildApp();
     await live.ready();
     try {
-      const t1 = (await live.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack" })).json().generated_at;
+      const t1 = (await live.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack", headers: asRole("producer") })).json().generated_at;
       await new Promise((res) => setTimeout(res, 20));
-      const t2 = (await live.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack" })).json().generated_at;
+      const t2 = (await live.inject({ method: "GET", url: "/v1/productions/p_dry/underwriting-pack", headers: asRole("producer") })).json().generated_at;
       expect(t1).not.toBe(t2);
     } finally {
       await live.close();

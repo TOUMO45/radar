@@ -50,15 +50,15 @@ GRAFANA_TOK_V="$(val GRAFANA_SERVICE_ACCOUNT_TOKEN)"
 GEMINI_KEY_V="$(val Gemini_API_KEY)"; [ -z "$GEMINI_KEY_V" ] && GEMINI_KEY_V="$(val GEMINI_API_KEY)"
 
 if [ "${1:-}" != "--verify-only" ]; then
-  echo "== 1/4  Vertex IAM (optional — lets the assistant use Vertex gemini-2.5-flash, more reliable than the free API) =="
+  echo "== 1/4  Vertex IAM (roles/aiplatform.user on the runtime SA — idempotent) =="
   USE_VERTEX=0
   if gcloud "${GA[@]}" projects add-iam-policy-binding "$PROJECT" \
        --member="serviceAccount:${RUNTIME_SA}" \
        --role="roles/aiplatform.user" --condition=None >/dev/null 2>&1; then
-    echo "   granted roles/aiplatform.user to ${RUNTIME_SA}"
+    echo "   roles/aiplatform.user confirmed on ${RUNTIME_SA}"
     USE_VERTEX=1
   else
-    echo "   (skipped/failed — assistant will use the Gemini API key path with gemini-3.6-flash)"
+    echo "   (grant failed — assistant will use the Gemini API key path with gemini-3.6-flash)"
   fi
 
   echo "== 2/4  build the env-vars file =="
@@ -66,18 +66,21 @@ if [ "${1:-}" != "--verify-only" ]; then
   {
     echo "GRAFANA_URL: \"${GRAFANA_URL_V}\""
     echo "GRAFANA_SA_TOKEN: \"${GRAFANA_TOK_V}\""
-    echo "GEMINI_API_KEY: \"${GEMINI_KEY_V}\""
     if [ "$USE_VERTEX" = "1" ]; then
+      # Vertex is the default path now (2026-09-05) — GEMINI_API_KEY is
+      # deliberately OMITTED, not just deprioritized, so there is no silent
+      # fallback to the free-tier key masking a real Vertex problem.
       echo "GOOGLE_GENAI_USE_VERTEXAI: \"TRUE\""
       echo "GOOGLE_CLOUD_PROJECT: \"${PROJECT}\""
       echo "GOOGLE_CLOUD_LOCATION: \"${REGION}\""
       echo "RADAR_ASSISTANT_MODEL: \"gemini-2.5-flash\""
     else
+      echo "GEMINI_API_KEY: \"${GEMINI_KEY_V}\""
       echo "RADAR_ASSISTANT_MODEL: \"gemini-3.6-flash\""
     fi
   } > "$ENVFILE"
   echo "   env file: $ENVFILE"
-  cat "$ENVFILE" | sed -E 's/(SA_TOKEN|API_KEY): ".{6}).*/\1: "\2…"/'
+  cat "$ENVFILE" | sed -E 's/(SA_TOKEN|API_KEY): "(.{6}).*/\1: "\2.../'
 
   echo "== 3/4  gcloud run deploy --source . =="
   gcloud "${GA[@]}" run deploy "$SERVICE" \
@@ -108,11 +111,14 @@ echo "-- mint a fresh certificate (in-memory store resets on redeploy) --"
 SLUG="$(jpost "$BASE/v1/demo/run" | grep -o '"slug":"[^"]*"' | head -1 | cut -d'"' -f4)"
 echo "   slug=$SLUG"
 
-echo "-- F1: live E&O pack --"
-T1="$(curl -s -m 30 "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
+echo "-- F1: live E&O pack (gated 2026-09-05 — producer/legal/sre_admin only) --"
+PRODUCER_AUTH="Authorization: Bearer ${RADAR_ROLE_TOKEN_PRODUCER:-radar_dev_producer_9f2a7c1e}"
+T1="$(curl -s -m 30 -H "$PRODUCER_AUTH" "$BASE/v1/productions/p_dry/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
 sleep 3
-T2="$(curl -s -m 30 "$BASE/v1/productions/sc_12/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
+T2="$(curl -s -m 30 -H "$PRODUCER_AUTH" "$BASE/v1/productions/sc_12/underwriting-pack" | grep -o '"generated_at":"[^"]*"' | head -1)"
 [ -n "$T1" ] && [ "$T1" != "$T2" ] && ok "E&O pack regenerated ($T1 -> $T2)" || bad "E&O pack generated_at did not move: $T1 / $T2"
+NOAUTH_CODE="$(curl -s -m 15 -o /dev/null -w '%{http_code}' "$BASE/v1/productions/p_dry/underwriting-pack")"
+[ "$NOAUTH_CODE" = "401" ] && ok "E&O pack rejects no-token request (401)" || bad "E&O pack should 401 with no token, got $NOAUTH_CODE"
 
 echo "-- F2: badge --"
 curl -s -m 20 "$BASE/v1/badge/$SLUG.svg"       | grep -qi "cleared"        && ok "badge (real slug) = Cleared"       || bad "badge real slug"

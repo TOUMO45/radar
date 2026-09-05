@@ -37,6 +37,25 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Must match services/api/src/auth.ts DEV_ROLE_TOKENS — same env var names,
+// same DEV/DEMO-only defaults (same convention already used by the BFF proxy
+// at apps/console/app/api/[...path]/route.ts). Needed here because this page
+// fetches server-side, straight to the API — it never goes through that BFF's
+// own role-header-to-token mapping.
+const PRODUCER_TOKEN = process.env.RADAR_ROLE_TOKEN_PRODUCER ?? "radar_dev_producer_9f2a7c1e";
+
+/** Like `get`, but authenticates as producer — for routes gated after the
+ *  2026-09-05 bug-hunt audit (underwriting pack: named subjects + consent
+ *  docs, no longer public). */
+async function getAsProducer<T>(path: string): Promise<T> {
+  const res = await fetch(`${base()}${path}`, {
+    cache: "no-store",
+    headers: { authorization: `Bearer ${PRODUCER_TOKEN}` },
+  });
+  if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
 export const DEMO_ORG = "org_demo";
 
 export const api = {
@@ -98,9 +117,11 @@ export const api = {
       by_shot: Record<string, Finding[]>;
     }>(`/v1/scenes/${sid}/compliance`).catch(() => null),
 
-  // E&O / Underwriting Pack (roadmap R1)
+  // E&O / Underwriting Pack (roadmap R1) — gated (producer/legal/sre_admin)
+  // since the 2026-09-05 bug-hunt audit; this RSC page has no end-user
+  // session of its own, so it authenticates as producer to keep working.
   getUnderwritingPack: (sid: string) =>
-    get<{ pack: UnderwritingPack }>(`/v1/scenes/${sid}/underwriting-pack`).then((r) => r.pack).catch(() => null),
+    getAsProducer<{ pack: UnderwritingPack }>(`/v1/scenes/${sid}/underwriting-pack`).then((r) => r.pack).catch(() => null),
 
   // R4 technical delivery
   getTechnicalDelivery: (sid: string) =>

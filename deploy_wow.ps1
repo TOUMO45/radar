@@ -1,4 +1,4 @@
-# deploy_wow.ps1 — PowerShell-native deploy of the six "wow" routes + live sweep.
+# deploy_wow.ps1 - PowerShell-native deploy of the six "wow" routes + live sweep.
 #
 # Use this instead of deploy_wow.sh on Windows: gcloud is authenticated in your
 # PowerShell session (you deployed radar-api from here before), but a bash
@@ -37,14 +37,13 @@ if (-not $acct) { Write-Error "gcloud has no active account. Run: gcloud auth lo
 Write-Host "account: $acct   project: $Project   region: $Region"
 
 if (-not $VerifyOnly) {
-  Write-Host "`n== 1/4  Vertex IAM (optional) =="
-  $vertexEnv = ""
-  try {
-    gcloud projects add-iam-policy-binding $Project --member="serviceAccount:$RuntimeSA" --role="roles/aiplatform.user" --condition=None --quiet | Out-Null
-    Write-Host "   granted roles/aiplatform.user -> assistant uses Vertex gemini-2.5-flash"
+  Write-Host "`n== 1/4  Vertex IAM (roles/aiplatform.user on the runtime SA - idempotent) =="
+  gcloud projects add-iam-policy-binding $Project --member="serviceAccount:$RuntimeSA" --role="roles/aiplatform.user" --condition=None --quiet | Out-Null
+  if ($LASTEXITCODE -eq 0) {
+    Write-Host "   roles/aiplatform.user confirmed on $RuntimeSA"
     $useVertex = $true
-  } catch {
-    Write-Host "   (skipped/failed -> assistant uses the Gemini API key path, gemini-3.6-flash)"
+  } else {
+    Write-Host "   (grant failed -> assistant will use the Gemini API key path, gemini-3.6-flash)"
     $useVertex = $false
   }
 
@@ -52,15 +51,18 @@ if (-not $VerifyOnly) {
   $envFile = Join-Path $env:TEMP "radar-api-env.yaml"
   $lines = @(
     "GRAFANA_URL: `"$GrafanaUrl`"",
-    "GRAFANA_SA_TOKEN: `"$GrafanaTok`"",
-    "GEMINI_API_KEY: `"$GeminiKey`""
+    "GRAFANA_SA_TOKEN: `"$GrafanaTok`""
   )
   if ($useVertex) {
+    # Vertex is the default path now (2026-09-05) - GEMINI_API_KEY is
+    # deliberately OMITTED, not just deprioritized, so there is no silent
+    # fallback to the free-tier key masking a real Vertex problem.
     $lines += "GOOGLE_GENAI_USE_VERTEXAI: `"TRUE`""
     $lines += "GOOGLE_CLOUD_PROJECT: `"$Project`""
     $lines += "GOOGLE_CLOUD_LOCATION: `"$Region`""
     $lines += "RADAR_ASSISTANT_MODEL: `"gemini-2.5-flash`""
   } else {
+    $lines += "GEMINI_API_KEY: `"$GeminiKey`""
     $lines += "RADAR_ASSISTANT_MODEL: `"gemini-3.6-flash`""
   }
   Set-Content -Path $envFile -Value $lines -Encoding utf8
@@ -68,7 +70,7 @@ if (-not $VerifyOnly) {
   Get-Content $envFile | ForEach-Object { $_ -replace '(SA_TOKEN|API_KEY): "(.{6}).*', '$1: "$2..."' } | Write-Host
 
   Write-Host "`n== 3/4  gcloud run deploy --source . =="
-  # env-vars-file is the ONLY env flag — it must not be combined with
+  # env-vars-file is the ONLY env flag - it must not be combined with
   # --set-env-vars / --update-env-vars (gcloud rejects that).
   & gcloud run deploy $Service `
     --source . `
@@ -87,17 +89,23 @@ $pass = 0; $fail = 0
 function OK($m)  { Write-Host "  [PASS] $m";  $script:pass++ }
 function BAD($m) { Write-Host "  [FAIL] $m";  $script:fail++ }
 function Get-($u) { (Invoke-WebRequest -UseBasicParsing -Uri $u).Content }
+function GetAuth-($u, $token) { (Invoke-WebRequest -UseBasicParsing -Uri $u -Headers @{ Authorization = "Bearer $token" }).Content }
+function GetCode-($u) { try { (Invoke-WebRequest -UseBasicParsing -Uri $u).StatusCode } catch { $_.Exception.Response.StatusCode.value__ } }
 function Post-($u,$body) { (Invoke-WebRequest -UseBasicParsing -Method POST -Uri $u -ContentType "application/json" -Body $body).Content }
+
+$ProducerToken = if ($env:RADAR_ROLE_TOKEN_PRODUCER) { $env:RADAR_ROLE_TOKEN_PRODUCER } else { "radar_dev_producer_9f2a7c1e" }
 
 Write-Host "-- mint a fresh certificate --"
 $slug = ([regex]'"slug":"([^"]*)"').Match((Post- "$BASE/v1/demo/run" "{}")).Groups[1].Value
 Write-Host "   slug=$slug"
 
-Write-Host "-- F1: live E&O pack --"
-$t1 = ([regex]'"generated_at":"([^"]*)"').Match((Get- "$BASE/v1/productions/p_dry/underwriting-pack")).Groups[1].Value
+Write-Host "-- F1: live E&O pack (gated 2026-09-05 -- producer/legal/sre_admin only) --"
+$t1 = ([regex]'"generated_at":"([^"]*)"').Match((GetAuth- "$BASE/v1/productions/p_dry/underwriting-pack" $ProducerToken)).Groups[1].Value
 Start-Sleep -Seconds 3
-$t2 = ([regex]'"generated_at":"([^"]*)"').Match((Get- "$BASE/v1/productions/p_dry/underwriting-pack")).Groups[1].Value
+$t2 = ([regex]'"generated_at":"([^"]*)"').Match((GetAuth- "$BASE/v1/productions/p_dry/underwriting-pack" $ProducerToken)).Groups[1].Value
 if ($t1 -and $t1 -ne $t2) { OK "E&O pack regenerated ($t1 -> $t2)" } else { BAD "generated_at did not move: $t1 / $t2" }
+$noAuthCode = GetCode- "$BASE/v1/productions/p_dry/underwriting-pack"
+if ($noAuthCode -eq 401) { OK "E&O pack rejects no-token request (401)" } else { BAD "E&O pack should 401 with no token, got $noAuthCode" }
 
 Write-Host "-- F2: badge --"
 if ((Get- "$BASE/v1/badge/$slug.svg")     -match "Cleared")       { OK "badge real slug = Cleared" }       else { BAD "badge real slug" }
