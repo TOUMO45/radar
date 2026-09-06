@@ -1,6 +1,7 @@
 import type { ClassScore } from "@scenelock/schema";
 import { api } from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
+import { BenchRunner } from "@/components/BenchRunner";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,11 @@ export default async function SceneBench() {
   if (!card) {
     return (
       <div className="flex flex-col gap-5">
-        <PageHeader eyebrow="Quality" title="SceneBench" sub="Gate release scorecard — catch-rate per risk class and false-positive rate at the decision threshold." />
+        <PageHeader eyebrow="Quality" title="SceneBench" sub="Gate release scorecard — catch-rate per risk class and false-positive rate at the decision threshold.">
+          <BenchRunner />
+        </PageHeader>
         <div className="section-card p-6 text-[var(--color-text-secondary)]">
-          No scorecard published yet. Run the corpus:{" "}
-          <span className="mono">POST /v1/bench/run</span> (Producer/SRE), or{" "}
+          No scorecard published yet. Run the corpus with the button above (Producer/SRE), or{" "}
           <span className="mono">pnpm --filter @scenelock/saboteur bench</span>.
         </div>
       </div>
@@ -29,7 +31,9 @@ export default async function SceneBench() {
         sub={`Adversarial corpus ${card.corpus_version} — does each gate still catch what it's meant to, without crying wolf on clean footage?`}
         status={card.release_ok ? "release ok" : "release blocked"}
         statusTone={card.release_ok ? "locked" : "error"}
-      />
+      >
+        <BenchRunner />
+      </PageHeader>
 
       <div className="section-card rise">
         <div className="section-head" style={{ ["--head-color" as string]: "var(--color-source-deterministic)" }}>
