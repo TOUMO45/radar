@@ -342,4 +342,4 @@ apps/
 
 ## License
 
-[MIT](LICENSE) © 2026 TOUMO45
+[MIT](LICENSE) © 2026 Kamari Fatima Zohra
