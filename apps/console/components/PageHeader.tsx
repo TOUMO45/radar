@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
  * same thing everywhere (green = clean/locked, amber = held, red = blocking,
  * blue = signed, cyan = neutral accent).
  */
-type Tone = "locked" | "held" | "error" | "certified" | "accent" | "muted";
+type Tone = "locked" | "held" | "error" | "certified" | "accent" | "model" | "muted";
 
 const TONE_VAR: Record<Tone, string> = {
   locked: "var(--color-status-locked)",
@@ -19,6 +19,7 @@ const TONE_VAR: Record<Tone, string> = {
   error: "var(--color-status-error)",
   certified: "var(--color-status-certified)",
   accent: "var(--color-accent)",
+  model: "var(--color-source-model)",
   muted: "var(--color-text-secondary)",
 };
 
