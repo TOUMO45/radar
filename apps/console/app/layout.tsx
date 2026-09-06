@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RoleSwitcher } from "@/components/RoleSwitcher";
+import { TopNav } from "@/components/TopNav";
 import "./globals.css";
 
 /*
@@ -16,42 +17,28 @@ export const metadata: Metadata = {
   description: "Closed-loop QA radar for AI-generated film content",
 };
 
-const NAV = [
-  { href: "/", label: "Productions" },
-  { href: "/quickscan", label: "Quick Scan" },
-  { href: "/bench", label: "SceneBench" },
-];
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
+        {/* drifting colour + fine film-grain flicker, purely decorative — see globals.css */}
+        <div className="aurora-layer" aria-hidden>
+          <span /><span /><span /><span />
+        </div>
+        <div className="grain-layer" aria-hidden />
         <header className="topbar">
-          <div className="flex items-center gap-4 px-5 h-[52px] max-w-[1440px] mx-auto">
-            <Link href="/" className="flex items-center gap-2 group" aria-label="Radar home">
-              <span
-                className="chip chip-dot text-[var(--color-status-locked)] border-transparent bg-transparent px-0"
-                aria-hidden
-              />
-              <span className="mono text-[16px] tracking-tight font-medium">
-                RA<span className="text-[var(--color-accent)]">DAR</span>
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 sm:gap-4 px-3 sm:px-5 py-2 sm:py-0 sm:h-[52px] max-w-[1440px] mx-auto">
+            <Link href="/" className="flex items-center gap-2 group shrink-0" aria-label="Radar home">
+              <span className="rec-dot" aria-hidden />
+              <span className="mono text-[16px] tracking-tight font-medium wordmark-gradient">
+                RADAR
               </span>
             </Link>
-            <span className="h-eyebrow hidden sm:block">Review Console</span>
+            <span className="h-eyebrow hidden md:block shrink-0">Review Console</span>
 
-            <nav className="ml-4 flex items-center gap-1">
-              {NAV.map((n) => (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className="px-3 py-[6px] rounded-[5px] text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-raise)] transition-colors"
-                >
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
+            <TopNav />
 
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0 order-1 sm:order-none">
               <span className="mono text-[11px] text-[var(--color-text-faint)] hidden md:flex items-center gap-1">
                 <kbd className="border rounded-[3px] px-[5px] py-[1px] bg-[var(--color-bg-raise)]">⌘K</kbd>
                 to jump

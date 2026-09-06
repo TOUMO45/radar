@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { StateTimeline, DriftSparkline } from "@/components/StateTimeline";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -22,23 +23,31 @@ export default async function WorldStateBrowser({
   const detailed = await Promise.all(entities.map((e) => api.getEntity(e.entity_id)));
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← {pid}
-        </Link>
-        <h1 className="text-[18px] font-medium">World State</h1>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Review"
+        title="World State"
+        sub="Every tracked entity — props, wardrobe, characters, locations — with its canonical description, anchor version and state history across shots."
+        backHref={`/p/${pid}`}
+        backLabel={pid}
+        status={`${detailed.length} ${detailed.length === 1 ? "entity" : "entities"}`}
+        statusTone="accent"
+      >
         <Link
           href={`/p/${pid}/consent`}
-          className="ml-auto mono text-[12px] text-[var(--color-source-deterministic)] underline"
+          className="chip chip-soft hover:text-[var(--color-text-primary)]"
         >
           consent registry →
         </Link>
-      </div>
+      </PageHeader>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3 stagger">
         {detailed.map(({ entity: e, state_events }) => (
-          <div key={e.entity_id} className="panel p-4 flex flex-col gap-2">
+          <div
+            key={e.entity_id}
+            className="section-card rail p-4 flex flex-col gap-2"
+            style={{ ["--rail-color" as string]: TYPE_TONE[e.type] }}
+          >
             <div className="flex items-center gap-2">
               <span
                 className="mono text-[10px] uppercase px-2 py-[1px] rounded-[2px] border"

@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { SelfHealPanel } from "@/components/SelfHealPanel";
 import { LikenessResolver } from "@/components/LikenessResolver";
 import { TrustGauge } from "@/components/TrustGauge";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -40,17 +41,20 @@ export default async function CompliancePage({
   ]);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← overview
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Compliance & Delivery"
+        title="Compliance & Delivery"
+        sub="Trust Score, per-territory delivery readiness, and every cited synthetic-media obligation. The screen a producer takes to distribution."
+        backHref={`/p/${pid}`}
+        backLabel="overview"
+        status={trust ? `trust ${trust.score}` : undefined}
+        statusTone={trust?.band === "green" ? "locked" : trust?.band === "amber" ? "held" : "error"}
+      >
+        <Link href={`/p/${pid}/underwriting`} className="chip chip-soft hover:text-[var(--color-text-primary)]">
+          E&O / underwriting pack →
         </Link>
-        <h1 className="text-[18px] font-medium">Compliance &amp; Delivery</h1>
-        <span className="mono text-[11px] text-[var(--color-text-secondary)]">{sid}</span>
-        <Link href={`/p/${pid}/underwriting`} className="ml-auto mono text-[12px] text-[var(--color-source-deterministic)] underline">
-          E&amp;O / underwriting pack →
-        </Link>
-      </div>
+      </PageHeader>
 
       {/* Trust Score */}
       {trust && (
@@ -94,16 +98,16 @@ export default async function CompliancePage({
 
       {/* Delivery Readiness */}
       {delivery && (
-        <div className="panel">
-          <div className="vmb-k px-4 py-2 border-b flex items-center gap-3">
+        <div className="section-card rise">
+          <div className="section-head flex items-center gap-3" style={{ ["--head-color" as string]: delivery.ready ? "var(--color-status-locked)" : "var(--color-status-error)" }}>
             <span>Delivery Readiness</span>
             <span
-              className="mono text-[10px] uppercase px-2 py-[1px] rounded-[2px]"
+              className="chip chip-solid !text-[10px]"
               style={{ color: delivery.ready ? "var(--color-status-locked)" : "var(--color-status-error)" }}
             >
               {delivery.ready ? "clear to ship" : "not deliverable"}
             </span>
-            <span className="ml-auto normal-case text-[var(--color-text-secondary)]">
+            <span className="ml-auto normal-case tracking-normal text-[var(--color-text-secondary)]">
               can this scene legally ship, per target, right now?
             </span>
           </div>
@@ -139,10 +143,10 @@ export default async function CompliancePage({
 
       {/* Cited compliance findings */}
       {compliance && (
-        <div className="panel">
-          <div className="vmb-k px-4 py-2 border-b flex items-center gap-3">
+        <div className="section-card rise">
+          <div className="section-head flex items-center gap-3" style={{ ["--head-color" as string]: "var(--color-status-error)" }}>
             <span>{compliance.findings.length} compliance finding{compliance.findings.length === 1 ? "" : "s"}</span>
-            <span className="ml-auto normal-case text-[var(--color-text-secondary)]">
+            <span className="ml-auto normal-case tracking-normal text-[var(--color-text-secondary)]">
               targets in force: {compliance.profile.territories.join(", ")} · {compliance.profile.platforms.join(", ") || "no platforms"}
             </span>
           </div>

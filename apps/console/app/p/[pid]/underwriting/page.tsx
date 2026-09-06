@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +36,9 @@ export default async function UnderwritingPage({
 
   if (!pack) {
     return (
-      <div className="flex flex-col gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← overview
-        </Link>
-        <div className="panel px-4 py-6 text-[var(--color-text-secondary)]">
+      <div className="flex flex-col gap-5">
+        <PageHeader eyebrow="Certification" title="E&O / Underwriting Pack" backHref={`/p/${pid}`} backLabel="overview" />
+        <div className="section-card px-4 py-6 text-[var(--color-text-secondary)]">
           No underwriting pack available for this production.
         </div>
       </div>
@@ -49,34 +48,37 @@ export default async function UnderwritingPage({
   const bindTone = pack.bindable ? "var(--color-status-locked)" : "var(--color-status-error)";
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← overview
-        </Link>
-        <h1 className="text-[18px] font-medium">E&amp;O / Underwriting Pack</h1>
-        <span className="mono text-[11px] text-[var(--color-text-secondary)]">{pack.scene_id}</span>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Certification"
+        title="E&O / Underwriting Pack"
+        sub="The single binder a distributor's insurer reads to bind AI-content coverage. Every line is documented, not asserted."
+        backHref={`/p/${pid}`}
+        backLabel="overview"
+        status={pack.bindable ? "documented" : `${pack.blocking_gaps.length} gap${pack.blocking_gaps.length === 1 ? "" : "s"}`}
+        statusTone={pack.bindable ? "locked" : "error"}
+      >
         <a
           href={`/api/v1/scenes/${pack.scene_id}/underwriting-pack.md`}
           target="_blank"
           rel="noreferrer"
-          className="ml-auto mono text-[11px] px-2 py-[3px] rounded-[3px] border border-[var(--color-line-hair)] text-[var(--color-source-deterministic)]"
+          className="chip chip-soft hover:text-[var(--color-text-primary)]"
         >
           open binder (.md) ↗
         </a>
-      </div>
+      </PageHeader>
 
       {/* Bindable verdict */}
-      <div className="panel p-4 flex items-center gap-5" style={{ borderLeft: `3px solid ${bindTone}` }}>
-        <div className="flex flex-col items-center justify-center rounded-[10px] border w-[150px] py-3" style={{ borderColor: bindTone }}>
-          <span className="mono text-[13px] uppercase" style={{ color: bindTone }}>
+      <div className="panel-hero p-5 flex items-center gap-6 flex-wrap rise" style={{ ["--hero-accent" as string]: bindTone }}>
+        <div className="flex flex-col items-center justify-center rounded-[12px] border w-[150px] py-4" style={{ borderColor: bindTone }}>
+          <span className="mono text-[13px] uppercase font-medium" style={{ color: bindTone }}>
             {pack.bindable ? "documented" : "gaps"}
           </span>
           <span className="text-[11px] mt-1 text-center px-2 text-[var(--color-text-secondary)]">
             {pack.bindable ? "reviewable to bind" : "not yet bindable"}
           </span>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-[260px]">
           <div className="vmb-k mb-1">Underwriting readiness</div>
           <div className="text-[13px] text-[var(--color-text-secondary)] mb-2">{pack.coverage_note}</div>
           <div className="flex items-center gap-3 text-[12px]">
@@ -114,8 +116,8 @@ export default async function UnderwritingPage({
       </div>
 
       {/* Underwriter checklist */}
-      <div className="panel">
-        <div className="vmb-k px-4 py-2 border-b">Underwriter checklist</div>
+      <div className="section-card rise">
+        <div className="section-head" style={{ ["--head-color" as string]: "var(--color-source-deterministic)" }}>Underwriter checklist</div>
         <div className="flex flex-col">
           {pack.checklist.map((c) => (
             <div key={c.id} className="px-4 py-3 border-b last:border-b-0 flex items-start gap-3">
@@ -138,8 +140,8 @@ export default async function UnderwritingPage({
       </div>
 
       {/* Per-shot disclosure schedule */}
-      <div className="panel">
-        <div className="vmb-k px-4 py-2 border-b">Per-shot AI-disclosure schedule</div>
+      <div className="section-card rise">
+        <div className="section-head" style={{ ["--head-color" as string]: "var(--color-source-model)" }}>Per-shot AI-disclosure schedule</div>
         <div className="overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
@@ -177,8 +179,8 @@ export default async function UnderwritingPage({
       </div>
 
       {/* Findings ledger with waiver trail */}
-      <div className="panel">
-        <div className="vmb-k px-4 py-2 border-b">
+      <div className="section-card rise">
+        <div className="section-head" style={{ ["--head-color" as string]: "var(--color-status-error)" }}>
           Clearance &amp; compliance findings — {pack.findings_ledger.length} on record
         </div>
         {pack.findings_ledger.length === 0 ? (
@@ -211,8 +213,8 @@ export default async function UnderwritingPage({
 
       {/* Consent ledger + certificate */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="panel">
-          <div className="vmb-k px-4 py-2 border-b">Consent ledger</div>
+        <div className="section-card rise">
+          <div className="section-head" style={{ ["--head-color" as string]: "var(--color-status-certified)" }}>Consent ledger</div>
           {pack.consent_ledger.length === 0 ? (
             <div className="px-4 py-6 text-[var(--color-text-secondary)]">No consent records on file.</div>
           ) : (
@@ -230,8 +232,8 @@ export default async function UnderwritingPage({
           )}
         </div>
 
-        <div className="panel">
-          <div className="vmb-k px-4 py-2 border-b">Signed certificate</div>
+        <div className="section-card rise">
+          <div className="section-head" style={{ ["--head-color" as string]: "var(--color-status-locked)" }}>Signed certificate</div>
           {pack.certificate.present ? (
             <div className="px-4 py-3 flex flex-col gap-[4px] text-[12px]">
               <div>

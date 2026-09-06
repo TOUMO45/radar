@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -19,38 +20,43 @@ export default async function MusicPage({ params }: { params: Promise<{ pid: str
   const data = sid ? await api.getCueSheet(sid) : null;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <h1 className="text-[18px] font-medium">Music &amp; Cue Sheet</h1>
-        <span className="mono text-[11px] text-[var(--color-text-secondary)]">{sid}</span>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Compliance & Delivery"
+        title="Music & Cue Sheet"
+        sub="The PRO cue sheet ASCAP / BMI / PRS and broadcasters require. Uncleared cues raise a music_rights finding and ride in the certificate's music appendix."
+        backHref={`/p/${pid}`}
+        backLabel={sid ?? pid}
+        status={data ? (data.cue_sheet.uncleared_cues ? `${data.cue_sheet.uncleared_cues} uncleared` : "all cleared") : undefined}
+        statusTone={data?.cue_sheet.uncleared_cues ? "error" : "locked"}
+      />
 
       {!data ? (
-        <div className="panel px-4 py-6 text-[var(--color-text-secondary)]">No cue sheet available.</div>
+        <div className="section-card px-4 py-6 text-[var(--color-text-secondary)]">No cue sheet available.</div>
       ) : (
         <>
-          <div className="panel p-4 flex items-center gap-8">
-            <div>
-              <div className="vmb-k">cues</div>
-              <div className="mono text-[22px]">{data.cue_sheet.total_cues}</div>
+          <div className="panel-hero p-5 flex items-center gap-10 flex-wrap rise" style={{ ["--hero-accent" as string]: data.cue_sheet.uncleared_cues ? "var(--color-status-error)" : "var(--color-status-locked)" }}>
+            <div className="metric">
+              <span className="metric-k">cues</span>
+              <span className="metric-v pop">{data.cue_sheet.total_cues}</span>
             </div>
-            <div>
-              <div className="vmb-k">cleared</div>
-              <div className="mono text-[22px]" style={{ color: "var(--color-status-locked)" }}>{data.cue_sheet.cleared_cues}</div>
+            <div className="metric">
+              <span className="metric-k">cleared</span>
+              <span className="metric-v pop" style={{ ["--metric-color" as string]: "var(--color-status-locked)" }}>{data.cue_sheet.cleared_cues}</span>
             </div>
-            <div>
-              <div className="vmb-k">uncleared</div>
-              <div className="mono text-[22px]" style={{ color: data.cue_sheet.uncleared_cues ? "var(--color-status-error)" : "var(--color-status-locked)" }}>{data.cue_sheet.uncleared_cues}</div>
+            <div className="metric">
+              <span className="metric-k">uncleared</span>
+              <span className="metric-v pop" style={{ ["--metric-color" as string]: data.cue_sheet.uncleared_cues ? "var(--color-status-error)" : "var(--color-status-locked)" }}>{data.cue_sheet.uncleared_cues}</span>
             </div>
-            <div>
-              <div className="vmb-k">total music</div>
-              <div className="mono text-[22px]">{fmtMs(data.cue_sheet.total_music_ms)}</div>
+            <div className="metric">
+              <span className="metric-k">total music</span>
+              <span className="metric-v pop">{fmtMs(data.cue_sheet.total_music_ms)}</span>
             </div>
-            <span className="ml-auto mono text-[10px] text-[var(--color-text-secondary)] normal-case">this cue sheet rides in the signed certificate&rsquo;s music appendix</span>
+            <span className="ml-auto mono text-[10px] text-[var(--color-text-faint)] max-w-[190px] leading-relaxed">rides in the signed certificate&rsquo;s music appendix</span>
           </div>
 
-          <div className="panel">
-            <div className="vmb-k px-4 py-2 border-b">Cue sheet — {data.cue_sheet.production_title}</div>
+          <div className="section-card rise">
+            <div className="section-head" style={{ ["--head-color" as string]: "var(--color-source-hybrid)" }}>Cue sheet — {data.cue_sheet.production_title}</div>
             <div className="overflow-x-auto">
               <table className="w-full text-[12px]">
                 <thead>
@@ -81,8 +87,8 @@ export default async function MusicPage({ params }: { params: Promise<{ pid: str
           </div>
 
           {data.findings.length > 0 && (
-            <div className="panel">
-              <div className="vmb-k px-4 py-2 border-b">{data.findings.length} music-rights finding{data.findings.length === 1 ? "" : "s"}</div>
+            <div className="section-card rise">
+              <div className="section-head" style={{ ["--head-color" as string]: "var(--color-status-error)" }}>{data.findings.length} music-rights finding{data.findings.length === 1 ? "" : "s"}</div>
               {data.findings.map((f) => (
                 <div key={f.finding_id} className="px-4 py-3 border-b last:border-b-0 flex items-start gap-3">
                   <span className="mono text-[10px] uppercase px-2 py-[1px] rounded-[2px] border mt-[2px] border-[var(--color-line-hair)]" style={{ color: STATUS_TONE.unlicensed }}>{f.severity}</span>

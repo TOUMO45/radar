@@ -5,6 +5,9 @@ import { REASON_COPY, VerdictChip } from "./badges";
  * C-01 VerdictBanner + C-02 VerdictMathBar.
  * "Show the math" (UX principle 2): the lock rule is visible at all times.
  * Every number binds to a real field on the verdict_inputs snapshot (E.4).
+ *
+ * Cinematic pass: a LOCKED verdict gets a quiet certified glow on the frame
+ * (mirrors the HELD "breathe" state) so the win state reads as a win.
  */
 export function VerdictMathBar({ v }: { v: SceneVerdict }) {
   const i = v.inputs;
@@ -13,7 +16,7 @@ export function VerdictMathBar({ v }: { v: SceneVerdict }) {
 
   return (
     <div
-      className="panel-hero overflow-hidden rise"
+      className={`panel-hero overflow-hidden rise ${!held ? "glow-locked" : ""}`}
       style={{ ["--hero-accent" as string]: tone }}
     >
       <div

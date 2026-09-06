@@ -6,6 +6,9 @@ import { useEffect, useRef, useState } from "react";
  * TrustGauge — a 0–100 arc ring for the Trust Score (compliance vertical).
  * Band colour, count-up on mount, arc sweeps to value. Reused on the
  * Productions home, Production Overview and the Compliance screen.
+ *
+ * Cinematic pass: a slow counter-rotating dashed ring behind the data arc
+ * (radar/reel read, decorative only) and a pop-in on the number itself.
  */
 
 const BAND: Record<string, { color: string; label: string }> = {
@@ -70,6 +73,18 @@ export function TrustGauge({
     <div className="flex flex-col items-center" style={{ width: size }}>
       <div className="relative" style={{ width: size, height: size * 0.86 }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="block">
+          <circle
+            cx={cx}
+            cy={cx}
+            r={r + 5}
+            fill="none"
+            stroke={b.color}
+            strokeOpacity={0.18}
+            strokeWidth={1}
+            strokeDasharray="2 7"
+            className="reel-ring"
+            style={{ transformOrigin: `${cx}px ${cx}px` }}
+          />
           <g transform={`rotate(135 ${cx} ${cx})`}>
             <circle
               cx={cx}
@@ -98,7 +113,7 @@ export function TrustGauge({
           </g>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ paddingBottom: size * 0.06 }}>
-          <span className="mono font-medium leading-none" style={{ fontSize: size * 0.32, color: b.color }}>
+          <span className="mono font-medium leading-none pop" style={{ fontSize: size * 0.32, color: b.color }}>
             {shown}
           </span>
           <span className="h-eyebrow mt-1" style={{ color: b.color }}>

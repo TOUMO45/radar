@@ -27,14 +27,18 @@ export function setRole(r: ConsoleRole): void {
 }
 
 export async function clientFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api/${path.replace(/^\//, "")}`, {
-    ...init,
-    headers: {
-      "content-type": "application/json",
-      "x-scenelock-role": getRole(),
-      ...(init.headers ?? {}),
-    },
-  });
+  // Only claim a JSON content-type when we're actually sending a JSON body.
+  // Fastify rejects an empty body that carries `content-type: application/json`
+  // (FST_ERR_CTP_EMPTY_JSON_BODY → 400), which broke every bodyless POST the
+  // console makes (demo run/reset, rerun-gates, auto-remediate, …).
+  const headers: Record<string, string> = {
+    "x-scenelock-role": getRole(),
+    ...((init.headers as Record<string, string>) ?? {}),
+  };
+  if (init.body != null && !("content-type" in headers)) {
+    headers["content-type"] = "application/json";
+  }
+  const res = await fetch(`/api/${path.replace(/^\//, "")}`, { ...init, headers });
   const text = await res.text();
   const body = text ? JSON.parse(text) : null;
   if (!res.ok) throw new ApiError(res.status, body?.error ?? res.statusText);

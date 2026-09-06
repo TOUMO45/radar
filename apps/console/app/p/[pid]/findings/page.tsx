@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { FindingInbox } from "@/components/FindingInbox";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +12,19 @@ export default async function FindingsPage({
 }) {
   const { pid } = await params;
   const { findings } = await api.listFindings(pid);
+  const blocking = findings.filter((f) => f.blocking && f.status === "open").length;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← {pid}
-        </Link>
-        <h1 className="text-[18px] font-medium">Finding Inbox</h1>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Review"
+        title="Finding Inbox"
+        sub="Every open issue across the production, most severe first. Confirm, waive, or open the dossier."
+        backHref={`/p/${pid}`}
+        backLabel={pid}
+        status={blocking > 0 ? `${blocking} blocking` : "none blocking"}
+        statusTone={blocking > 0 ? "error" : "locked"}
+      />
       <FindingInbox findings={findings} />
     </div>
   );

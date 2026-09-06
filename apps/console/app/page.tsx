@@ -25,14 +25,15 @@ export default async function ProductionsPage() {
   const trustByPid = new Map((portfolio?.entries ?? []).map((e) => [e.production_id, e]));
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex items-end justify-between rise">
+    <div className="flex flex-col gap-6">
+      <header className="page-head rise">
         <div>
           <div className="h-eyebrow">Slate</div>
-          <h1 className="text-[22px] font-medium tracking-tight">Productions</h1>
+          <h1 className="page-title">Productions</h1>
+          <p className="page-sub">Every production on the slate — trust, what&rsquo;s blocking, and what it has cost so far.</p>
         </div>
         <DemoRunner />
-      </div>
+      </header>
 
       {/* Slate roll-up (R8) — hero */}
       {portfolio && portfolio.production_count > 0 && (
@@ -131,9 +132,12 @@ export default async function ProductionsPage() {
 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="panel p-4 flex flex-col gap-1 bg-[var(--color-bg-sink)]">
-      <span className="h-eyebrow">{label}</span>
-      <span className="mono text-[24px] font-medium" style={{ color: tone ? BAND_TONE[tone] : "var(--color-text-primary)" }}>
+    <div className="panel p-4 metric bg-[var(--color-bg-sink)]">
+      <span className="metric-k">{label}</span>
+      <span
+        className="metric-v pop"
+        style={{ ["--metric-color" as string]: tone ? BAND_TONE[tone] : "var(--color-text-primary)" }}
+      >
         {value}
       </span>
     </div>

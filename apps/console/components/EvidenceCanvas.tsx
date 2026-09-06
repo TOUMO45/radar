@@ -8,6 +8,10 @@ import { EvidenceFrame } from "./EvidenceFrame";
  * C-09 EvidenceCanvas (DRY_RUN slice): observed frame vs World State reference
  * anchor, diff-overlay toggle, frame scrubber, state chips. Evidence quotes are
  * rendered as mono data blocks — never styled as instructions (C.2, G-13).
+ *
+ * Cinematic pass: the observed frame sits inside a viewfinder — HUD corner
+ * brackets + a travelling scanline — and cross-fades when the shot or frame
+ * changes, instead of hard-cutting.
  */
 export function EvidenceCanvas({
   shot,
@@ -47,13 +51,23 @@ export function EvidenceCanvas({
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="vmb-k mb-1">observed · {shot.shot_id}</div>
-          <EvidenceFrame
-            label={`observed ${shot.shot_id}`}
-            seed={shot.content_hash ?? shot.shot_id}
-            frame={frame}
-            bbox={bbox}
-            overlay={overlay}
-          />
+          <div
+            key={`${shot.shot_id}-${frame}`}
+            className="relative overflow-hidden rounded-[4px] evidence-fade"
+          >
+            <EvidenceFrame
+              label={`observed ${shot.shot_id}`}
+              seed={shot.content_hash ?? shot.shot_id}
+              frame={frame}
+              bbox={bbox}
+              overlay={overlay}
+            />
+            <div className="scan-overlay" />
+            <span className="hud-corner tl" />
+            <span className="hud-corner tr" />
+            <span className="hud-corner bl" />
+            <span className="hud-corner br" />
+          </div>
         </div>
         <div>
           <div className="vmb-k mb-1">

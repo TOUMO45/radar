@@ -37,7 +37,8 @@ export function SourceBadge({ source }: { source: FindingSource }) {
   );
 }
 
-/** C-03 StatusChip — scene/shot/verdict states. */
+/** C-03 StatusChip — scene/shot/verdict states. LOCKED gets a quiet certified
+ * glow so the win state reads as a win, not just another chip colour. */
 const VERDICT_COLOR: Record<Verdict, string> = {
   LOCKED: "var(--color-status-locked)",
   HELD: "var(--color-status-held)",
@@ -48,7 +49,11 @@ export function VerdictChip({ verdict }: { verdict: Verdict }) {
   return (
     <span
       className="mono text-[12px] font-medium uppercase px-2 py-[2px] rounded-[2px] border"
-      style={{ color: VERDICT_COLOR[verdict], borderColor: VERDICT_COLOR[verdict] }}
+      style={{
+        color: VERDICT_COLOR[verdict],
+        borderColor: VERDICT_COLOR[verdict],
+        boxShadow: verdict === "LOCKED" ? `0 0 14px -3px ${VERDICT_COLOR[verdict]}` : "none",
+      }}
     >
       {verdict}
     </span>

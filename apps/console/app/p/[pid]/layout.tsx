@@ -14,7 +14,7 @@ export default async function ProductionLayout({
     <>
       <DegradedBanner pid={pid} />
       <CommandPalette pid={pid} />
-      <div className="flex gap-5 items-start">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-5 items-stretch lg:items-start">
         <SideNav pid={pid} />
         <div className="flex-1 min-w-0">{children}</div>
       </div>

@@ -42,7 +42,7 @@ export function DemoRunner() {
       <button
         onClick={() => call("run")}
         disabled={busy !== null}
-        className="mono text-[12px] px-3 py-1 rounded-[2px] border disabled:opacity-40"
+        className="mono text-[12px] px-3 py-1 rounded-[2px] border disabled:opacity-40 shimmer-cta"
         style={{ color: "var(--color-status-held)", borderColor: "var(--color-status-held)" }}
       >
         {busy === "run" ? "running Acts 1–3…" : "▶ run demo (Acts 1–3)"}

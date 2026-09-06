@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -11,20 +11,27 @@ export default async function LoopMonitor({
 }) {
   const { pid } = await params;
   const { directives, attempts, incidents } = await api.getLoop(pid);
+  const openIncidents = incidents.filter((i) => i.status === "open").length;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← {pid}
-        </Link>
-        <h1 className="text-[18px] font-medium">Loop Monitor</h1>
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Review"
+        title="Loop Monitor"
+        sub="What the self-heal loop did: incidents it opened, the directive it compiled for each, and every regeneration attempt with its cost."
+        backHref={`/p/${pid}`}
+        backLabel={pid}
+        status={openIncidents > 0 ? `${openIncidents} open` : "all clear"}
+        statusTone={openIncidents > 0 ? "error" : "locked"}
+      />
 
       {/* incidents */}
-      <section className="panel">
-        <div className="vmb-k px-4 py-2 border-b">
-          incidents · {incidents.filter((i) => i.status === "open").length} open / {incidents.length}
+      <section className="section-card rise">
+        <div
+          className="section-head"
+          style={{ ["--head-color" as string]: openIncidents > 0 ? "var(--color-status-error)" : "var(--color-status-locked)" }}
+        >
+          incidents · {openIncidents} open / {incidents.length}
         </div>
         {incidents.length === 0 ? (
           <div className="px-4 py-4 text-[var(--color-text-secondary)]">
@@ -58,8 +65,10 @@ export default async function LoopMonitor({
       </section>
 
       {/* directives + LoopStepper (C-11) */}
-      <section className="panel">
-        <div className="vmb-k px-4 py-2 border-b">directives · {directives.length}</div>
+      <section className="section-card rise">
+        <div className="section-head" style={{ ["--head-color" as string]: "var(--color-accent)" }}>
+          directives · {directives.length}
+        </div>
         <div className="flex flex-col">
           {directives.map((d) => {
             const steps = attempts
@@ -122,8 +131,10 @@ export default async function LoopMonitor({
       </section>
 
       {/* attempts table */}
-      <section className="panel">
-        <div className="vmb-k px-4 py-2 border-b">attempts · {attempts.length}</div>
+      <section className="section-card rise">
+        <div className="section-head" style={{ ["--head-color" as string]: "var(--color-source-hybrid)" }}>
+          attempts · {attempts.length}
+        </div>
         <div className="flex flex-col">
           {attempts.map((a) => (
             <div key={`${a.directive_id}-${a.attempt_no}`} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-4 mono text-[11px]">

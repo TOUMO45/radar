@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { VerdictMathBar } from "@/components/VerdictMathBar";
 import { CostMeter } from "@/components/CostMeter";
 import { KillSwitchControl } from "@/components/KillSwitchControl";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -30,21 +31,23 @@ export default async function ProductionOverview({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <h1 className="text-[18px] font-medium">{production.title}</h1>
-        <span className="mono text-[11px] text-[var(--color-text-secondary)]">
-          {pid} · {production.mode}
-        </span>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Production"
+        title={production.title}
+        sub={`${pid} · ${production.mode} · τ ${production.settings.tau}`}
+        status={verdict.verdict}
+        statusTone={verdict.verdict === "LOCKED" ? "locked" : verdict.verdict === "HELD" ? "held" : "error"}
+      >
         {trust && (
           <Link
             href={`/p/${pid}/compliance`}
-            className="flex items-center gap-2 border rounded-[6px] px-2 py-1"
+            className="flex items-center gap-2 border rounded-[8px] px-3 py-[6px] hover:bg-[var(--color-bg-raise)] transition-colors"
             style={{ borderColor: TRUST_TONE[trust.band] }}
             title={trust.headline}
           >
-            <span className="mono text-[10px] uppercase text-[var(--color-text-secondary)]">Trust</span>
-            <span className="mono text-[18px] font-medium" style={{ color: TRUST_TONE[trust.band] }}>
+            <span className="mono text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)]">Trust</span>
+            <span className="mono text-[20px] font-medium leading-none" style={{ color: TRUST_TONE[trust.band] }}>
               {trust.score}
             </span>
             <span className="mono text-[9px] uppercase" style={{ color: TRUST_TONE[trust.band] }}>
@@ -55,45 +58,43 @@ export default async function ProductionOverview({
         {certBundle && (
           <Link
             href={`/p/${pid}/certificates/${certBundle.certificate.certificate_id}`}
-            className="ml-auto mono text-[12px] text-[var(--color-status-certified)] underline"
+            className="chip chip-solid"
+            style={{ color: "var(--color-status-certified)" }}
           >
             signed certificate →
           </Link>
         )}
-      </div>
+      </PageHeader>
 
       <VerdictMathBar v={verdict} />
 
-      <div className="panel p-4">
-        <div className="vmb-k mb-2">scenes</div>
-        <div className="flex gap-2 flex-wrap">
-          {scenes.map((s) => (
-            <Link
-              key={s.scene_id}
-              href={`/p/${pid}/scenes/${s.scene_id}`}
-              className="border rounded-[6px] px-3 py-2 hover:bg-[var(--color-bg-raise)]"
-            >
-              <div className="mono text-[12px]">{s.scene_id}</div>
-              <div className="text-[var(--color-text-secondary)] text-[12px]">
-                {s.heading}
-              </div>
-              <div
-                className="mono text-[11px] mt-1"
-                style={{
-                  color:
-                    s.verdict?.verdict === "LOCKED"
-                      ? "var(--color-status-locked)"
-                      : "var(--color-status-held)",
-                }}
+      <div className="section-card p-5 rise">
+        <div className="vmb-k mb-3" style={{ color: "var(--color-accent)" }}>scenes</div>
+        <div className="flex gap-3 flex-wrap">
+          {scenes.map((s) => {
+            const locked = s.verdict?.verdict === "LOCKED";
+            const tone = locked ? "var(--color-status-locked)" : "var(--color-status-held)";
+            return (
+              <Link
+                key={s.scene_id}
+                href={`/p/${pid}/scenes/${s.scene_id}`}
+                className="card rail px-4 py-3 min-w-[220px]"
+                style={{ ["--rail-color" as string]: tone }}
               >
-                {s.verdict?.verdict ?? s.status}
-              </div>
-            </Link>
-          ))}
+                <div className="mono text-[12px]">{s.scene_id}</div>
+                <div className="text-[var(--color-text-secondary)] text-[12px] mt-[2px]">
+                  {s.heading}
+                </div>
+                <div className="mono text-[11px] mt-2 font-medium" style={{ color: tone }}>
+                  {s.verdict?.verdict ?? s.status}
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
 
-      <div className="grid grid-cols-[1fr_320px] gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4">
         <CostMeter detail={budget.detail} level={budget.level} killSwitch={budget.kill_switch} />
         <KillSwitchControl pid={pid} engaged={production.kill_switch} />
       </div>

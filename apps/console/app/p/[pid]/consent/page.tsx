@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -18,19 +18,24 @@ export default async function ConsentRegistry({
   const { pid } = await params;
   const records = await api.listConsent(pid);
 
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}/world`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← world state
-        </Link>
-        <h1 className="text-[18px] font-medium">Consent Registry</h1>
-      </div>
+  const active = records.filter((r) => r.status === "active").length;
 
-      <div className="panel">
-        <div className="vmb-k px-4 py-2 border-b flex items-center gap-3">
+  return (
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Compliance & Delivery"
+        title="Consent Registry"
+        sub="Talent and likeness releases on file. The real_person clearance check fires when a matched public figure has no active record here."
+        backHref={`/p/${pid}/world`}
+        backLabel="world state"
+        status={`${active}/${records.length} active`}
+        statusTone={active === records.length && records.length > 0 ? "locked" : "held"}
+      />
+
+      <div className="section-card rise">
+        <div className="section-head flex items-center gap-3" style={{ ["--head-color" as string]: "var(--color-status-certified)" }}>
           <span>{records.length} record{records.length === 1 ? "" : "s"}</span>
-          <span className="ml-auto normal-case text-[var(--color-text-secondary)]">
+          <span className="ml-auto normal-case tracking-normal text-[var(--color-text-secondary)]">
             upload disabled in DRY_RUN — releases go to CMEK GCS + access log (E.10)
           </span>
         </div>

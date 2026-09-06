@@ -8,16 +8,17 @@ import { usePathname } from "next/navigation";
  * a page of ad-hoc links into a real app: functions grouped, current screen lit.
  */
 type Item = { href: string; label: string; badge?: string };
-type Group = { title: string; items: Item[] };
+type Group = { title: string; items: Item[]; tone: string };
 
 export function SideNav({ pid }: { pid: string }) {
   const pathname = usePathname() ?? "";
   const p = (s: string) => `/p/${pid}${s}`;
 
   const groups: Group[] = [
-    { title: "Production", items: [{ href: p(""), label: "Overview" }] },
+    { title: "Production", tone: "var(--color-accent)", items: [{ href: p(""), label: "Overview" }] },
     {
       title: "Review",
+      tone: "var(--color-source-model)",
       items: [
         { href: p("/scenes/sc_12"), label: "War Room" },
         { href: p("/findings"), label: "Finding Inbox" },
@@ -27,6 +28,7 @@ export function SideNav({ pid }: { pid: string }) {
     },
     {
       title: "Compliance & Delivery",
+      tone: "var(--color-source-hybrid)",
       items: [
         { href: p("/compliance"), label: "Compliance", badge: "2026" },
         { href: p("/delivery"), label: "Delivery QC", badge: "R4" },
@@ -36,6 +38,7 @@ export function SideNav({ pid }: { pid: string }) {
     },
     {
       title: "Certification",
+      tone: "var(--color-status-certified)",
       items: [
         { href: p("/underwriting"), label: "E&O Pack", badge: "R1" },
         { href: p("/certificates"), label: "Certificates" },
@@ -50,11 +53,24 @@ export function SideNav({ pid }: { pid: string }) {
   };
 
   return (
-    <nav className="w-[204px] flex-none flex flex-col gap-5 pr-3 sticky top-[68px] self-start" aria-label="Production navigation">
+    <nav
+      aria-label="Production navigation"
+      className="
+        w-full lg:w-[204px] lg:flex-none lg:self-start lg:sticky lg:top-[68px]
+        flex lg:flex-col gap-1 lg:gap-5 lg:pr-3
+        overflow-x-auto lg:overflow-visible
+        -mx-1 px-1 lg:mx-0
+        border-b lg:border-b-0 border-[var(--color-line-hair)] pb-2 lg:pb-0
+        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
+      "
+    >
       {groups.map((g) => (
-        <div key={g.title} className="flex flex-col gap-[3px]">
-          <div className="h-eyebrow px-2 mb-1 flex items-center gap-[6px]">
-            <span className="w-[3px] h-[3px] rounded-full bg-[var(--color-accent)]" />
+        <div key={g.title} className="flex lg:flex-col gap-1 lg:gap-[3px] shrink-0">
+          <div className="h-eyebrow px-2 mb-1 hidden lg:flex items-center gap-[6px]">
+            <span
+              className="w-[4px] h-[4px] rounded-full"
+              style={{ background: g.tone, boxShadow: `0 0 6px ${g.tone}` }}
+            />
             {g.title}
           </div>
           {g.items.map((it) => {
@@ -64,18 +80,18 @@ export function SideNav({ pid }: { pid: string }) {
                 key={it.href}
                 href={it.href}
                 aria-current={active ? "page" : undefined}
-                className="group relative flex items-center gap-2 px-3 py-[7px] rounded-[5px] text-[13px] transition-all duration-150"
+                className="group relative flex items-center gap-2 px-3 py-[7px] rounded-[6px] text-[13px] whitespace-nowrap transition-all duration-150 hover:text-[var(--color-text-primary)] hover:bg-[color-mix(in_srgb,var(--color-bg-raise)_60%,transparent)]"
                 style={{
                   background: active ? "var(--color-bg-raise)" : "transparent",
                   color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
                   boxShadow: active
-                    ? "inset 2px 0 0 var(--color-accent), 0 0 20px -10px var(--color-accent)"
+                    ? `inset 2px 0 0 ${g.tone}, 0 0 20px -10px ${g.tone}`
                     : "inset 2px 0 0 transparent",
                 }}
               >
                 <span className="flex-1">{it.label}</span>
                 {it.badge && (
-                  <span className="chip chip-soft !text-[9px] !px-[5px] !py-[1px]">{it.badge}</span>
+                  <span className="chip chip-soft !text-[9px] !px-[5px] !py-[1px] hidden lg:inline-flex">{it.badge}</span>
                 )}
               </Link>
             );

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { HashChainView } from "@/components/HashChainView";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -23,22 +24,19 @@ export default async function CertificateViewer({
   const p = cert.payload;
 
   return (
-    <div className="flex flex-col gap-3 max-w-[820px]">
-      <div className="flex items-baseline gap-3">
-        <Link href={`/p/${pid}`} className="mono text-[12px] text-[var(--color-source-deterministic)]">
-          ← {pid}
-        </Link>
-        <h1 className="text-[18px] font-medium">Clearance Certificate</h1>
-        <span
-          className="mono text-[11px] px-2 py-[2px] rounded-[2px] border"
-          style={{ color: "var(--color-status-certified)", borderColor: "var(--color-status-certified)" }}
-        >
-          CERTIFIED
-        </span>
-      </div>
+    <div className="flex flex-col gap-5 max-w-[840px]">
+      <PageHeader
+        eyebrow="Certification"
+        title="Clearance Certificate"
+        sub="What Radar checked and what humans decided, hashed and KMS-signed into a chain. Attests the review — not a legal opinion."
+        backHref={`/p/${pid}`}
+        backLabel={pid}
+        status="certified"
+        statusTone="certified"
+      />
 
-      <div className="panel p-4 flex flex-col gap-3">
-        <dl className="grid grid-cols-[160px_1fr] gap-x-3 gap-y-1 text-[12px] mono">
+      <div className="section-card p-5 rise">
+        <dl className="grid grid-cols-[160px_1fr] gap-x-3 gap-y-[6px] text-[12px] mono">
           <Row k="project" v={p.project} />
           <Row k="scene" v={p.scene} />
           <Row k="lock timestamp" v={p.lock_timestamp} />
@@ -51,8 +49,8 @@ export default async function CertificateViewer({
         </dl>
       </div>
 
-      <div className="panel p-4">
-        <div className="vmb-k mb-2">findings & adjudications</div>
+      <div className="section-card p-5 rise">
+        <div className="vmb-k mb-3" style={{ color: "var(--color-source-model)" }}>findings & adjudications</div>
         <ul className="flex flex-col gap-1 text-[12px] mono">
           {p.findings.map((line, i) => (
             <li key={i} className="text-[var(--color-text-secondary)]">
@@ -62,8 +60,8 @@ export default async function CertificateViewer({
         </ul>
       </div>
 
-      <div className="panel p-4">
-        <div className="vmb-k mb-2">evidence chain</div>
+      <div className="section-card p-5 rise">
+        <div className="vmb-k mb-3" style={{ color: "var(--color-source-hybrid)" }}>evidence chain</div>
         <div className="text-[11px] mono text-[var(--color-text-secondary)] flex flex-col gap-1">
           <div>frames: {p.evidence_chain.frames.length}</div>
           <div>quotes: {p.evidence_chain.quotes.length}</div>
@@ -72,14 +70,14 @@ export default async function CertificateViewer({
         </div>
       </div>
 
-      <div className="panel p-4">
-        <div className="vmb-k mb-2">hash chain (C-17)</div>
+      <div className="section-card p-5 rise">
+        <div className="vmb-k mb-3" style={{ color: "var(--color-source-deterministic)" }}>hash chain (C-17)</div>
         <HashChainView chain={chain} currentHash={p.certificate_hash} />
       </div>
 
       <div
-        className="panel p-4 text-[12px]"
-        style={{ borderLeft: "3px solid var(--color-status-held)" }}
+        className="section-card p-5 text-[12px] rail"
+        style={{ ["--rail-color" as string]: "var(--color-status-held)" }}
       >
         <div className="vmb-k mb-1">disclaimer (verbatim)</div>
         {p.disclaimer}

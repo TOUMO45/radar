@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { api } from "@/lib/api";
+import { PageHeader } from "@/components/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -21,28 +21,25 @@ export default async function DeliveryPage({ params }: { params: Promise<{ pid: 
   const report = sid ? await api.getTechnicalDelivery(sid) : null;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline gap-3">
-        <h1 className="text-[18px] font-medium">Technical Delivery QC</h1>
-        <span className="mono text-[11px] text-[var(--color-text-secondary)]">{sid}</span>
-        {report && (
-          <span
-            className="mono text-[10px] uppercase px-2 py-[1px] rounded-[2px]"
-            style={{ color: report.passed ? "var(--color-status-locked)" : "var(--color-status-error)" }}
-          >
-            {report.passed ? "delivery clean" : `${report.findings.length} spec failure${report.findings.length === 1 ? "" : "s"}`}
-          </span>
-        )}
-      </div>
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        eyebrow="Compliance & Delivery"
+        title="Technical Delivery QC"
+        sub="The assembled master against each targeted platform's real delivery spec — loudness, captions, frame rate, resolution, colour, codec. Deterministic: it meets the number or it doesn't."
+        backHref={`/p/${pid}`}
+        backLabel={sid ?? pid}
+        status={report ? (report.passed ? "delivery clean" : `${report.findings.length} spec failure${report.findings.length === 1 ? "" : "s"}`) : undefined}
+        statusTone={report?.passed ? "locked" : "error"}
+      />
 
       {!report ? (
-        <div className="panel px-4 py-6 text-[var(--color-text-secondary)]">No delivery report available.</div>
+        <div className="section-card px-4 py-6 text-[var(--color-text-secondary)]">No delivery report available.</div>
       ) : (
         <>
           {/* the master */}
           {report.master && (
-            <div className="panel">
-              <div className="vmb-k px-4 py-2 border-b">Assembled master</div>
+            <div className="section-card rise">
+              <div className="section-head" style={{ ["--head-color" as string]: "var(--color-source-deterministic)" }}>Assembled master</div>
               <div className="flex flex-wrap gap-x-8 gap-y-2 px-4 py-3 text-[12px]">
                 {Object.entries({
                   resolution: `${report.master.width}×${report.master.height}`,
@@ -72,16 +69,19 @@ export default async function DeliveryPage({ params }: { params: Promise<{ pid: 
 
           {/* per-platform checks */}
           {report.targets.map((t) => (
-            <div key={t.platform} className="panel">
-              <div className="vmb-k px-4 py-2 border-b flex items-center gap-3">
+            <div key={t.platform} className="section-card rise">
+              <div
+                className="section-head flex items-center gap-3"
+                style={{ ["--head-color" as string]: t.passed ? "var(--color-status-locked)" : "var(--color-status-error)" }}
+              >
                 <span>{t.label}</span>
                 <span
-                  className="mono text-[10px] uppercase px-2 py-[1px] rounded-[2px]"
+                  className="chip chip-solid !text-[10px]"
                   style={{ color: t.passed ? "var(--color-status-locked)" : "var(--color-status-error)" }}
                 >
                   {t.passed ? "PASS" : "FAIL"}
                 </span>
-                <span className="ml-auto normal-case text-[var(--color-text-secondary)] text-[11px]">{t.citation}</span>
+                <span className="ml-auto normal-case tracking-normal text-[var(--color-text-secondary)] text-[11px]">{t.citation}</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[12px]">
