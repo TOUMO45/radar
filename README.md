@@ -24,25 +24,31 @@ service, called in code*).
 |---|---|---|
 | API health | https://radar-api-qf2l7fjeqa-uc.a.run.app/health | `{"status":"ok","mode":"dry_run","service":"@scenelock/api"}` |
 | Review Console | https://radar-console-qf2l7fjeqa-uc.a.run.app | the Control Room UI |
-| **Verify a live certificate** | https://radar-api-qf2l7fjeqa-uc.a.run.app/verify/sc12-7e67efdc57bd | `"status":"valid","chain_ok":true,"signature_ok":true` |
-| Same, rendered | https://radar-console-qf2l7fjeqa-uc.a.run.app/verify/sc12-7e67efdc57bd | a **✓ VALID** page with the hash chain |
-| Embeddable badge | https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/badge/sc12-7e67efdc57bd.svg | a green **✓ AI-Disclosed &amp; Cleared** SVG |
+
+**Verify a live certificate.** The hosted API runs `DRY_RUN` on a single warm instance with
+an in-memory store, so a certificate slug is real but not permanent — a `demo/reset` (the
+console's **▶ run demo** button calls it) or a cold start regenerates it. Mint your own in
+one call, then drop it into the three URLs below:
+
+```bash
+SLUG=$(curl -s -XPOST -H 'content-type: application/json' -d '{}' \
+  https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/demo/run \
+  | grep -o '"slug":"[^"]*"' | head -1 | cut -d'"' -f4)
+echo "$SLUG"                                                     # e.g. sc12-c100227e0a22
+curl -s https://radar-api-qf2l7fjeqa-uc.a.run.app/verify/$SLUG   # → "status":"valid", ...
+```
+
+| What | URL | Expect |
+|---|---|---|
+| **Verify a live certificate** | `https://radar-api-qf2l7fjeqa-uc.a.run.app/verify/$SLUG` | `"status":"valid","chain_ok":true,"signature_ok":true` |
+| Same, rendered | `https://radar-console-qf2l7fjeqa-uc.a.run.app/verify/$SLUG` | a **✓ VALID** page with the hash chain |
+| Embeddable badge | `https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/badge/$SLUG.svg` | a green **✓ AI-Disclosed &amp; Cleared** SVG |
 
 Badge embed (drops into any README or shot sheet):
 
 ```markdown
-![RADAR clearance](https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/badge/sc12-7e67efdc57bd.svg)
+![RADAR clearance](https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/badge/<SLUG>.svg)
 ```
-
-> The hosted API runs `DRY_RUN` on a single warm instance with an in-memory store, so
-> `sc12-7e67efdc57bd` is a **real, currently-valid** certificate but not a permanent one —
-> a `demo/reset` or a cold start regenerates it. Mint a fresh one in one call:
->
-> ```bash
-> curl -s -XPOST https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/demo/run | \
->   grep -o '"slug":"[^"]*"' | head -1
-> # → paste the slug into /verify/<slug> and /v1/badge/<slug>.svg
-> ```
 
 ## The problem
 
@@ -147,7 +153,7 @@ Every row is verifiable in under a minute with no help from us.
 
 | Requirement | Evidence |
 |---|---|
-| Hosted, publicly reachable | Console <https://radar-console-qf2l7fjeqa-uc.a.run.app> · API <https://radar-api-qf2l7fjeqa-uc.a.run.app/health> — both HTTP 200, no auth. Cloud Run revisions `radar-console-00006-9lq` / `radar-api-00004-zvx`. |
+| Hosted, publicly reachable | Console <https://radar-console-qf2l7fjeqa-uc.a.run.app> · API <https://radar-api-qf2l7fjeqa-uc.a.run.app/health> — both HTTP 200, no auth. Cloud Run, `us-central1`, `--min/--max-instances=1`. |
 | Public repo + OSI license | this repository · [`LICENSE`](LICENSE) — **MIT** |
 | Google Cloud used **at runtime** | [`services/api/src/assistant.ts:125`](services/api/src/assistant.ts#L125) `new GoogleGenAI({ vertexai: true, project, location })` → [`assistant.ts:203`](services/api/src/assistant.ts#L203) `ai.models.generateContent({ ... })`. Route [`services/api/src/app.ts:380`](services/api/src/app.ts#L380) `POST /v1/assistant/ask`. The deployed `radar-api` sets `GOOGLE_GENAI_USE_VERTEXAI=TRUE`, so this call runs through Vertex AI on Application Default Credentials. Also [`services/agent/radar_agent.py:294`](services/agent/radar_agent.py#L294) `LlmAgent(model="gemini-2.5-flash")`. |
 | Grafana MCP used **at runtime** | Agent: [`services/agent/radar_agent.py:104`](services/agent/radar_agent.py#L104) `from google.adk.tools import ... McpToolset` → [`radar_agent.py:206`](services/agent/radar_agent.py#L206) `McpToolset(connection_params=StdioConnectionParams(...))` launching `grafana/mcp-grafana`, wired into the agent at [`radar_agent.py:317`](services/agent/radar_agent.py#L317) `tools=[..., grafana_mcp]`; the `python radar_agent.py` self-test **G5** resolves live tools. Product path: [`services/api/src/grafana.ts:41`](services/api/src/grafana.ts#L41) `fetch(\`${GRAFANA_URL}/api/annotations\`, ...)` posts a real annotation on every wow-route call. |
@@ -160,7 +166,8 @@ All three probe scripts and the agent self-test run against the **live** deploym
 by minting a fresh certificate slug (the scripts need one for the verify / badge checks):
 
 ```bash
-SLUG=$(curl -s -XPOST https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/demo/run \
+SLUG=$(curl -s -XPOST -H 'content-type: application/json' -d '{}' \
+  https://radar-api-qf2l7fjeqa-uc.a.run.app/v1/demo/run \
   | grep -o '"slug":"[^"]*"' | head -1 | cut -d'"' -f4)
 echo "$SLUG"
 ```

@@ -19,6 +19,10 @@ __pycache__/
 # raw uploads
 files.zip
 _incoming/
+*.zip
+
+# local recording / scratch aids (not part of the deliverable)
+scene4_proof.sh
 
 # Grafana OSS MCP server binary (downloaded, 54MB — not committed)
 services/agent/bin/
