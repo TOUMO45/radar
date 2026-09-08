@@ -158,7 +158,7 @@ Every row is verifiable in under a minute with no help from us.
 | Google Cloud used **at runtime** | [`services/api/src/assistant.ts:125`](services/api/src/assistant.ts#L125) `new GoogleGenAI({ vertexai: true, project, location })` → [`assistant.ts:203`](services/api/src/assistant.ts#L203) `ai.models.generateContent({ ... })`. Route [`services/api/src/app.ts:380`](services/api/src/app.ts#L380) `POST /v1/assistant/ask`. The deployed `radar-api` sets `GOOGLE_GENAI_USE_VERTEXAI=TRUE`, so this call runs through Vertex AI on Application Default Credentials. Also [`services/agent/radar_agent.py:294`](services/agent/radar_agent.py#L294) `LlmAgent(model="gemini-2.5-flash")`. |
 | Grafana MCP used **at runtime** | Agent: [`services/agent/radar_agent.py:104`](services/agent/radar_agent.py#L104) `from google.adk.tools import ... McpToolset` → [`radar_agent.py:206`](services/agent/radar_agent.py#L206) `McpToolset(connection_params=StdioConnectionParams(...))` launching `grafana/mcp-grafana`, wired into the agent at [`radar_agent.py:317`](services/agent/radar_agent.py#L317) `tools=[..., grafana_mcp]`; the `python radar_agent.py` self-test **G5** resolves live tools. Product path: [`services/api/src/grafana.ts:41`](services/api/src/grafana.ts#L41) `fetch(\`${GRAFANA_URL}/api/annotations\`, ...)` posts a real annotation on every wow-route call. |
 | Partner track selected | **Grafana Labs** — contract + reconciliation in [`services/agent/README.md`](services/agent/README.md) |
-| Demo video | _add link here_ &nbsp;`<!-- TODO: paste the hosted video URL -->` |
+| Demo video | <https://youtu.be/QPCk2KFp4vk> — 3-minute walkthrough of the running system |
 
 ## Test it yourself in 5 minutes
 
